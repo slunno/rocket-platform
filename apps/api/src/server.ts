@@ -1,26 +1,27 @@
 import http from 'node:http';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import express from 'express';
 import { Server } from 'socket.io';
+import { env } from './env.js';
 import { verifyUserToken } from './auth.js';
 import { prisma } from './lib/prisma.js';
 import { createApiRouter } from './routes.js';
 
-dotenv.config({ path: '../../.env' });
-
 const app = express();
 const server = http.createServer(app);
-const webOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:5173';
-const io = new Server(server, { cors: { origin: webOrigin, methods: ['GET', 'POST'] } });
+const io = new Server(server, { cors: { origin: env.WEB_ORIGIN, methods: ['GET', 'POST'] } });
 
-app.use(cors({ origin: webOrigin }));
+app.use(cors({ origin: env.WEB_ORIGIN }));
 app.use(express.json({ limit: '1mb' }));
 app.use('/api', createApiRouter(io));
-app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(error);
-  return res.status(500).json({ error: 'Unexpected server error.' });
-});
+app.use(
+  (error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error(error);
+    return res.status(500).json({
+      error: { code: 'INTERNAL_ERROR', message: 'Ocorreu um erro interno.' },
+    });
+  },
+);
 
 io.use(async (socket, next) => {
   try {
@@ -33,12 +34,16 @@ io.use(async (socket, next) => {
 });
 
 io.on('connection', async (socket) => {
-  const memberships = await prisma.conversationMember.findMany({ where: { userId: socket.data.userId }, select: { conversationId: true } });
+  const memberships = await prisma.conversationMember.findMany({
+    where: { userId: socket.data.userId },
+    select: { conversationId: true },
+  });
   memberships.forEach(({ conversationId }) => socket.join(`conversation:${conversationId}`));
 });
 
-const port = Number(process.env.API_PORT ?? 4000);
-server.listen(port, () => console.log(`Rocket API listening on http://localhost:${port}`));
+server.listen(env.API_PORT, () =>
+  console.log(`Rocket API listening on http://localhost:${env.API_PORT}`),
+);
 
 async function shutdown() {
   io.close();

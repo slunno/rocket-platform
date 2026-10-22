@@ -1,22 +1,37 @@
 {
   "name": "rocket-platform",
   "private": true,
+  "type": "module",
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
+    "predev": "npm run build -w @rocket/shared",
     "dev": "concurrently -k -n API,WEB -c cyan,magenta \"npm run dev -w @rocket/api\" \"npm run dev -w @rocket/web\"",
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build -w @rocket/shared && npm run build -w @rocket/api && npm run build -w @rocket/web",
+    "lint": "eslint \"apps/**/*.{ts,tsx}\" \"packages/**/*.{ts,tsx}\"",
+    "format": "prettier --write \"**/*.{ts,tsx,css,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,css,json,md,yml,yaml}\"",
+    "typecheck": "npm run build -w @rocket/shared && npm run typecheck -w @rocket/shared && npm run typecheck -w @rocket/api && npm run typecheck -w @rocket/web",
+    "test": "vitest run",
     "db:generate": "npm run db:generate -w @rocket/api",
     "db:migrate": "npm run db:migrate -w @rocket/api",
+    "db:migrate:deploy": "npm run db:migrate:deploy -w @rocket/api",
     "db:seed": "npm run db:seed -w @rocket/api"
   },
   "devDependencies": {
+    "@eslint/js": "^9.35.0",
     "concurrently": "^9.2.1",
-    "dotenv-cli": "^8.0.0"
+    "dotenv-cli": "^8.0.0",
+    "eslint": "^9.35.0",
+    "globals": "^16.4.0",
+    "prettier": "^3.6.2",
+    "typescript-eslint": "^8.44.0",
+    "vitest": "^5.0.5"
   },
   "allowScripts": {
-    "@prisma/client@6.19.3": true,
+    "@prisma/client@7.10.1": true,
     "esbuild@0.28.2": true,
     "prisma@7.10.1": true,
     "@prisma/engines@7.10.1": true

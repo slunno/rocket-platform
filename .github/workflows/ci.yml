@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://rocket:rocket-ci-password@localhost:5432/rocket?schema=public
+      JWT_SECRET: ci-secret-with-at-least-32-characters
+      DEMO_AUTH_ENABLED: 'true'
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: rocket
+          POSTGRES_PASSWORD: rocket-ci-password
+          POSTGRES_DB: rocket
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rocket -d rocket"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
+      - run: npm run db:migrate:deploy
+      - run: npm run db:seed
