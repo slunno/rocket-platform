@@ -4,11 +4,31 @@ Plataforma de comunicação corporativa da AKR Brands, em português do Brasil. 
 
 ## Estado do projeto
 
-O **Bloco 0 — Fundação e higiene** está concluído. A CI valida instalação, qualidade, build, migração, seed e inicialização HTTP da API e da web. O próximo é o **Bloco 1 — Design system e shell da aplicação**. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para o plano completo, critérios de aceite, status e pendências.
+Os **Blocos 0 — Fundação e higiene** e **1 — Design system e shell da aplicação** estão concluídos. O próximo é o **Bloco 2 — Autenticação e perfil reais**. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para o plano completo, critérios de aceite, status e pendências.
+
+## Status dos blocos
+
+| Bloco                                        | Status       |
+| -------------------------------------------- | ------------ |
+| 0 — Fundação e higiene                       | ✅ Concluído |
+| 1 — Design system e shell                    | ✅ Concluído |
+| 2 — Autenticação e perfil reais              | ⏳ Pendente  |
+| 3 — Organização, equipes e canais            | ⏳ Pendente  |
+| 4 — Mensageria completa                      | ⏳ Pendente  |
+| 5 — Chats 1:1 e em grupo                     | ⏳ Pendente  |
+| 6 — Arquivos e anexos                        | ⏳ Pendente  |
+| 7 — Presença, atividade e notificações       | ⏳ Pendente  |
+| 8 — Busca                                    | ⏳ Pendente  |
+| 9 — Calendário e reuniões                    | ⏳ Pendente  |
+| 10 — Abas de canal e produtividade           | ⏳ Pendente  |
+| 11 — Administração, segurança e conformidade | ⏳ Pendente  |
+| 12 — Qualidade, observabilidade e entrega    | ⏳ Pendente  |
 
 ## O que existe hoje
 
-- Interface React com conversas, mensagens, busca rápida (`Ctrl/Cmd + K`), painel de detalhes, reações de demonstração, toasts e modo local com dados fictícios.
+- Interface React com shell responsivo, rotas, temas claro/escuro/alto contraste, tokens monocromáticos, busca rápida (`Ctrl/Cmd + K`), conversas, painel de detalhes, reações de demonstração e modo local com dados fictícios.
+- Componentes separados por layout, conversa e elementos básicos de interface; tema e largura da barra lateral persistidos no navegador.
+- Rotas com conteúdo de demonstração para Atividade, Calendário, Arquivos e Chamadas; os respectivos fluxos completos permanecem nos blocos futuros do roadmap.
 - API Express com sessão de demonstração para desenvolvimento, listagem de conversas e mensagens, envio de mensagens e eventos Socket.IO.
 - Modelo Prisma para usuários, espaços de trabalho, conversas, mensagens, anexos e reações, com migração inicial versionada.
 - Dados de demonstração fictícios em contexto de moda e indústria: Comercial, Produto e Estilo, Produção, Marketing, Logística e TI.
@@ -73,23 +93,25 @@ Para formatar os arquivos suportados, use `npm run format`. O fluxo do GitHub Ac
 
 ## Variáveis de ambiente
 
-| Variável            | Uso                                                            |
-| ------------------- | -------------------------------------------------------------- |
-| `POSTGRES_PASSWORD` | Senha local do container PostgreSQL                            |
-| `DATABASE_URL`      | Conexão PostgreSQL usada pela API, Prisma e seed               |
-| `JWT_SECRET`        | Segredo dos tokens de demonstração; mínimo de 32 caracteres    |
-| `DEMO_AUTH_ENABLED` | Habilita a sessão demo fora de produção                        |
-| `NODE_ENV`          | `development`, `test` ou `production`; padrão `development`    |
-| `API_PORT`          | Porta da API; padrão `4000`                                    |
-| `WEB_ORIGIN`        | Origem CORS permitida; padrão `http://localhost:5173`          |
-| `VITE_API_URL`      | URL da API consumida pelo Vite; padrão `http://localhost:4000` |
+| Variável              | Uso                                                            |
+| --------------------- | -------------------------------------------------------------- |
+| `POSTGRES_PASSWORD`   | Senha local do container PostgreSQL                            |
+| `DATABASE_URL`        | Conexão PostgreSQL usada pela API, Prisma e seed               |
+| `JWT_SECRET`          | Segredo dos tokens de demonstração; mínimo de 32 caracteres    |
+| `DEMO_AUTH_ENABLED`   | Habilita a sessão demo fora de produção                        |
+| `NODE_ENV`            | `development`, `test` ou `production`; padrão `development`    |
+| `API_PORT`            | Porta da API; padrão `4000`                                    |
+| `WEB_ORIGIN`          | Origem CORS permitida; padrão `http://localhost:5173`          |
+| `VITE_API_URL`        | URL da API consumida pelo Vite; padrão `http://localhost:4000` |
+| `VITE_BRAND_NAME`     | Nome exibido na barra superior; padrão `Rocket`                |
+| `VITE_BRAND_LOGO_URL` | URL opcional para a imagem da marca na barra superior          |
 
 A API falha cedo com a lista das variáveis inválidas. A rota de sessão demo retorna 404 em produção, e a configuração rejeita autenticação demo habilitada quando `NODE_ENV=production`.
 
 ## Identidade visual
 
-A interface atual ainda usa o tema do protótipo inicial. O sistema visual monocromático por tokens, temas claro/escuro/alto contraste e marca configurável será entregue no Bloco 1; depois dele, a paleta poderá ser trocada nos tokens sem editar componentes.
+A interface usa uma paleta monocromática concentrada em `apps/web/src/styles/tokens.css`, com temas claro, escuro e alto contraste. A marca na barra superior pode ser personalizada por `VITE_BRAND_NAME` e `VITE_BRAND_LOGO_URL`.
 
 ## Próximas etapas
 
-Autenticação e perfis reais, equipes e canais, mensageria completa, anexos, presença, busca, calendário, reuniões e recursos de administração estão planejados em [`docs/ROADMAP.md`](docs/ROADMAP.md) e ainda não devem ser considerados disponíveis.
+Autenticação e perfis reais, gestão de equipes e canais, mensageria completa, anexos, presença, busca, calendário, reuniões e recursos de administração estão planejados em [`docs/ROADMAP.md`](docs/ROADMAP.md) e ainda não devem ser considerados disponíveis.

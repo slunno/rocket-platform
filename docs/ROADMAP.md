@@ -7,7 +7,7 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 | Bloco                                        | Status       | Objetivo e critério de aceite                                                                                                                                        |
 | -------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0 — Fundação e higiene                       | ✅ Concluído | Shared package, validação Zod, qualidade e migração inicial configurados; CI aplicou migração e seed em PostgreSQL e confirmou a inicialização HTTP da API e da web. |
-| 1 — Design system e shell                    | ⏳ Pendente  | Shell responsivo, tokens monocromáticos e testes de navegação/acessibilidade; trocar tokens altera a aparência geral.                                                |
+| 1 — Design system e shell                    | ✅ Concluído | Shell responsivo, tokens monocromáticos, três temas persistidos, rotas principais, componentes separados e Lighthouse de acessibilidade 100.                         |
 | 2 — Autenticação e perfil reais              | ⏳ Pendente  | Cadastro, login, renovação rotativa, logout, recuperação e perfil testados com Argon2id, cookies seguros e rate limit.                                               |
 | 3 — Organização, equipes e canais            | ⏳ Pendente  | Workspace → equipes → canais, papéis e permissões de servidor; membros acessam apenas conteúdo autorizado.                                                           |
 | 4 — Mensageria completa                      | ⏳ Pendente  | Cursor, idempotência, edição, exclusão, threads, reações, menções, leitura e eventos em tempo real entre dois usuários.                                              |
@@ -124,3 +124,13 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 - **Commits enviados:** `4755ff7 chore(fundacao): prepara base e migracao inicial`; `266c25a ci(fundacao): valida inicializacao no pipeline`.
 - **Desvio registrado:** a checagem completa com PostgreSQL foi executada no runner do GitHub Actions porque o host local não possui Docker, `psql` nem PostgreSQL. O README mantém o fluxo local com Docker Compose.
 - **Próximo bloco:** Bloco 1 — Design system e shell da aplicação.
+
+### 2026-10-22 — Bloco 1 concluído
+
+- **Status:** ✅ Concluído.
+- **Entregue:** shell responsivo; rotas de chat, equipes/canais, atividade, calendário, arquivos e chamadas; tokens de cor centralizados; temas claro, escuro e alto contraste; marca configurável; largura da barra lateral e tema persistidos; layout e chat separados em componentes; busca global com navegação por teclado.
+- **Acessibilidade:** Lighthouse marcou 100 na auditoria de acessibilidade em viewport mobile; foco visível, skip link, navegação por teclado, nomes acessíveis e suporte a movimento reduzido.
+- **Validação local:** lint, formatação, typecheck, 14 testes, build, auditoria npm (zero vulnerabilidades) passaram; busca global cobre foco, setas e abertura de resultado; hexadecimais de cor aparecem somente em `apps/web/src/styles/tokens.css`.
+- **Rotas de demonstração:** Atividade, Calendário, Arquivos e Chamadas têm shell e estados vazios; os fluxos completos pertencem aos blocos futuros.
+- **Commits enviados:** `b4e0f8a chore(deps): prepara roteamento e testes da interface`; `38b2c2d feat(web): cria shell responsivo e sistema visual`; `07ddac6 test(web): cobre temas, rotas e busca por teclado`.
+- **Próximo bloco:** Bloco 2 — Autenticação e perfil reais.

@@ -25,3 +25,15 @@ Registros curtos de contexto, decisão e consequência.
 - **Contexto:** o seed inicial tinha espaços e canais de exemplo de uma empresa de tecnologia.
 - **Decisão:** usar nomes fictícios e canais de Comercial, Produto e Estilo, Produção, Marketing, Logística e TI.
 - **Consequência:** demonstração é coerente com moda/indústria e não depende de dados reais.
+
+## 2026-10-22 — Shell, navegação e temas
+
+- **Contexto:** o protótipo concentrava rotas, layout, conversa e componentes em um único arquivo e usava estilos sem uma fonte única de cores.
+- **Decisão:** usar React Router 7, separar shell/layout/features/componentes, concentrar cores em `apps/web/src/styles/tokens.css` e oferecer temas claro, escuro e alto contraste.
+- **Consequência:** o tema e a largura da barra lateral ficam em `localStorage`; os caminhos de Atividade, Calendário, Arquivos e Chamadas já existem com estados vazios até seus blocos funcionais.
+
+## 2026-10-22 — Marca e avatares monocromáticos
+
+- **Contexto:** organizações diferentes precisam adaptar a marca sem alterar o design system; os avatares do protótipo usavam cores aleatórias.
+- **Decisão:** configurar nome e logo da barra superior por `VITE_BRAND_NAME` e `VITE_BRAND_LOGO_URL`, e derivar o tom monocromático do avatar pelo identificador estável da pessoa.
+- **Consequência:** a identidade da barra pode ser personalizada por ambiente e a mesma pessoa mantém aparência previsível entre renderizações.
