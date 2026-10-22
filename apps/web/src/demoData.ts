@@ -4,7 +4,6 @@ export const me: Person = {
   id: 'demo-user',
   name: 'Alex Nogueira',
   initials: 'AN',
-  color: '#d77d62',
   status: 'online',
   role: 'Produto',
 };
@@ -15,7 +14,6 @@ export const people: Person[] = [
     id: 'ana',
     name: 'Ana Souza',
     initials: 'AS',
-    color: '#8f7de0',
     status: 'online',
     role: 'Product designer',
   },
@@ -23,7 +21,6 @@ export const people: Person[] = [
     id: 'marcos',
     name: 'Marcos Ribeiro',
     initials: 'MR',
-    color: '#36a78d',
     status: 'away',
     role: 'Engenharia',
   },
@@ -31,7 +28,6 @@ export const people: Person[] = [
     id: 'bruna',
     name: 'Bruna Costa',
     initials: 'BC',
-    color: '#e29b58',
     status: 'offline',
     role: 'Marketing',
   },
@@ -39,7 +35,6 @@ export const people: Person[] = [
     id: 'luiz',
     name: 'Luiz Fernando',
     initials: 'LF',
-    color: '#5597c2',
     status: 'online',
     role: 'Liderança',
   },
@@ -101,7 +96,13 @@ export const conversations: Conversation[] = [
   },
 ];
 
-const today = 'Hoje, 22 de outubro';
+const currentDate = new Date();
+const previousDate = new Date(currentDate);
+previousDate.setDate(previousDate.getDate() - 1);
+const formatDayAndMonth = (date: Date) =>
+  new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long' }).format(date);
+const today = `Hoje, ${formatDayAndMonth(currentDate)}`;
+const yesterday = `Ontem, ${formatDayAndMonth(previousDate)}`;
 
 export const messages: Record<string, Message[]> = {
   produto: [
@@ -175,7 +176,7 @@ export const messages: Record<string, Message[]> = {
       author: people[2],
       text: 'O deploy foi concluído e está tudo certo no ambiente de staging. Se alguém encontrar algum problema, me avisa por aqui.',
       time: 'Ontem, 16:48',
-      date: 'Ontem',
+      date: yesterday,
     },
   ],
   'dm-ana': [
@@ -217,9 +218,9 @@ export const messages: Record<string, Message[]> = {
       author: me,
       text: 'Separei as referências visuais para a próxima campanha. Te mando o link?',
       time: 'Ontem, 15:02',
-      date: 'Ontem',
+      date: yesterday,
       mine: true,
     },
-    { id: 'b2', author: people[3], text: 'Obrigada! ✨', time: 'Ontem, 15:16', date: 'Ontem' },
+    { id: 'b2', author: people[3], text: 'Obrigada! ✨', time: 'Ontem, 15:16', date: yesterday },
   ],
 };

@@ -78,7 +78,6 @@ export function mapRemotePerson(
       .map((part) => part[0])
       .join('')
       .toUpperCase(),
-    color: ['#8f7de0', '#36a78d', '#e29b58', '#5597c2', '#d77d62'][person.id.length % 5],
     status: person.status.toLowerCase() as Person['status'],
   };
 }
@@ -92,7 +91,9 @@ export function mapRemoteMessage(message: RemoteMessage, myId: string): Message 
     time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(
       new Date(message.createdAt),
     ),
-    date: 'Hoje, 22 de outubro',
+    date: new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(
+      new Date(message.createdAt),
+    ),
     mine: message.author.id === myId,
     reactions: message.reactions.map((reaction) => ({
       emoji: reaction.emoji,

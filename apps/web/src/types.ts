@@ -4,7 +4,6 @@ export type Person = {
   id: string;
   name: string;
   initials: string;
-  color: string;
   status: 'online' | 'away' | 'offline';
   role?: string;
 };
