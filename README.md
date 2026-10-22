@@ -4,7 +4,7 @@ Plataforma de comunicação corporativa da AKR Brands, em português do Brasil. 
 
 ## Estado do projeto
 
-O repositório está no **Bloco 0 — Fundação e higiene**. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para o plano completo, critérios de aceite, status e pendências.
+O **Bloco 0 — Fundação e higiene** está concluído. A CI valida instalação, qualidade, build, migração, seed e inicialização HTTP da API e da web. O próximo é o **Bloco 1 — Design system e shell da aplicação**. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para o plano completo, critérios de aceite, status e pendências.
 
 ## O que existe hoje
 
