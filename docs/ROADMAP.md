@@ -4,21 +4,21 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 
 ## Resumo
 
-| Bloco                                        | Status          | Objetivo e critério de aceite                                                                                                                                                                       |
-| -------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0 — Fundação e higiene                       | 🚧 Em andamento | Repositório instala e inicia seguindo o README; shared package, validação Zod, qualidade, migração inicial e CI estão configurados. Falta aplicar e exercitar a migração com PostgreSQL disponível. |
-| 1 — Design system e shell                    | ⏳ Pendente     | Shell responsivo, tokens monocromáticos e testes de navegação/acessibilidade; trocar tokens altera a aparência geral.                                                                               |
-| 2 — Autenticação e perfil reais              | ⏳ Pendente     | Cadastro, login, renovação rotativa, logout, recuperação e perfil testados com Argon2id, cookies seguros e rate limit.                                                                              |
-| 3 — Organização, equipes e canais            | ⏳ Pendente     | Workspace → equipes → canais, papéis e permissões de servidor; membros acessam apenas conteúdo autorizado.                                                                                          |
-| 4 — Mensageria completa                      | ⏳ Pendente     | Cursor, idempotência, edição, exclusão, threads, reações, menções, leitura e eventos em tempo real entre dois usuários.                                                                             |
-| 5 — Chats 1:1 e em grupo                     | ⏳ Pendente     | Busca de pessoas, DMs idempotentes, grupos, participantes, silenciar e fixar; sem duplicação de conversas.                                                                                          |
-| 6 — Arquivos e anexos                        | ⏳ Pendente     | MinIO e StorageProvider com upload, preview e download autorizados, respeitando limites e tipos permitidos.                                                                                         |
-| 7 — Presença, Atividade e Notificações       | ⏳ Pendente     | Presença via Redis, feed, notificações e preferências consistentes entre instâncias.                                                                                                                |
-| 8 — Busca                                    | ⏳ Pendente     | Busca PostgreSQL por mensagens, pessoas, canais e arquivos; resultados obedecem permissões.                                                                                                         |
-| 9 — Calendário e Reuniões                    | ⏳ Pendente     | Calendário, eventos e reuniões LiveKit com autorização, áudio/vídeo e compartilhamento entre participantes.                                                                                         |
-| 10 — Abas de canal e produtividade           | ⏳ Pendente     | Abas configuráveis de publicações, arquivos, notas e tarefas, com itens salvos/pinados persistidos.                                                                                                 |
-| 11 — Administração, segurança e conformidade | ⏳ Pendente     | Administração, auditoria, retenção, LGPD e checklist sem vulnerabilidades altas abertas.                                                                                                            |
-| 12 — Qualidade, observabilidade e entrega    | ⏳ Pendente     | E2E, logs e métricas, healthchecks, imagens Docker e deploy; instalação limpa e suíte E2E verdes no CI.                                                                                             |
+| Bloco                                        | Status          | Objetivo e critério de aceite                                                                                                                                                             |
+| -------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 — Fundação e higiene                       | 🚧 Em andamento | Shared package, validação Zod, qualidade e migração inicial estão configurados; CI aplicou migração e seed em PostgreSQL. Falta checagem final de inicialização da API e web no pipeline. |
+| 1 — Design system e shell                    | ⏳ Pendente     | Shell responsivo, tokens monocromáticos e testes de navegação/acessibilidade; trocar tokens altera a aparência geral.                                                                     |
+| 2 — Autenticação e perfil reais              | ⏳ Pendente     | Cadastro, login, renovação rotativa, logout, recuperação e perfil testados com Argon2id, cookies seguros e rate limit.                                                                    |
+| 3 — Organização, equipes e canais            | ⏳ Pendente     | Workspace → equipes → canais, papéis e permissões de servidor; membros acessam apenas conteúdo autorizado.                                                                                |
+| 4 — Mensageria completa                      | ⏳ Pendente     | Cursor, idempotência, edição, exclusão, threads, reações, menções, leitura e eventos em tempo real entre dois usuários.                                                                   |
+| 5 — Chats 1:1 e em grupo                     | ⏳ Pendente     | Busca de pessoas, DMs idempotentes, grupos, participantes, silenciar e fixar; sem duplicação de conversas.                                                                                |
+| 6 — Arquivos e anexos                        | ⏳ Pendente     | MinIO e StorageProvider com upload, preview e download autorizados, respeitando limites e tipos permitidos.                                                                               |
+| 7 — Presença, Atividade e Notificações       | ⏳ Pendente     | Presença via Redis, feed, notificações e preferências consistentes entre instâncias.                                                                                                      |
+| 8 — Busca                                    | ⏳ Pendente     | Busca PostgreSQL por mensagens, pessoas, canais e arquivos; resultados obedecem permissões.                                                                                               |
+| 9 — Calendário e Reuniões                    | ⏳ Pendente     | Calendário, eventos e reuniões LiveKit com autorização, áudio/vídeo e compartilhamento entre participantes.                                                                               |
+| 10 — Abas de canal e produtividade           | ⏳ Pendente     | Abas configuráveis de publicações, arquivos, notas e tarefas, com itens salvos/pinados persistidos.                                                                                       |
+| 11 — Administração, segurança e conformidade | ⏳ Pendente     | Administração, auditoria, retenção, LGPD e checklist sem vulnerabilidades altas abertas.                                                                                                  |
+| 12 — Qualidade, observabilidade e entrega    | ⏳ Pendente     | E2E, logs e métricas, healthchecks, imagens Docker e deploy; instalação limpa e suíte E2E verdes no CI.                                                                                   |
 
 ## Critérios e tarefas por bloco
 
@@ -114,10 +114,11 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 
 ## Registro de execução
 
-### 2026-10-22 — Bloco 0 iniciado
+### 2026-10-22 — Bloco 0 em validação final
 
 - **Status:** 🚧 Em andamento.
 - **Entregue no checkout:** `@rocket/shared`, schemas Zod e constantes de socket, configuração Zod da API, testes Vitest iniciais, ESLint, Prettier, typecheck, CI e migração inicial gerada do schema.
-- **Validação local até agora:** `npm install` concluiu e a auditoria ficou sem vulnerabilidades após atualizar o Vitest; seis testes passaram e `npm run build` passou.
-- **Pendência:** este ambiente não possui Docker, `psql` nem servidor PostgreSQL instalados. A migração foi gerada sem banco, mas ainda precisa ser aplicada e o seed exercitado em um ambiente com PostgreSQL.
-- **Commits:** serão registrados quando o bloco for validado e commitado.
+- **Validação local:** lint, Prettier, typecheck, 7 testes, build e `npm audit` passaram; auditoria encontrou zero vulnerabilidades.
+- **CI #1:** passou `npm ci`, lint, format check, typecheck, testes, build, `prisma migrate deploy` e seed sobre PostgreSQL 17.
+- **Pendência:** este ambiente não possui Docker, `psql` nem PostgreSQL instalados. Foi adicionada uma checagem de inicialização HTTP da API e web à CI; aguardando essa execução antes de fechar o bloco.
+- **Commit enviado:** `4755ff7 chore(fundacao): prepara base e migracao inicial`.

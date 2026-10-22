@@ -12,7 +12,7 @@ Registros curtos de contexto, decisão e consequência.
 
 - **Contexto:** o ambiente de execução não disponibiliza Docker, `psql` nem PostgreSQL.
 - **Decisão:** gerar a migração inicial com `prisma migrate diff` a partir do schema versionado, sem simular aplicação no banco.
-- **Consequência:** o SQL fica revisável e commitável; Bloco 0 permanece em andamento até aplicação real e validação do seed.
+- **Consequência:** o SQL fica revisável e commitável; CI aplica a migração e executa o seed em PostgreSQL 17. A máquina local não foi usada para validação de banco.
 
 ## 2026-10-22 — Validação de ambiente
 
