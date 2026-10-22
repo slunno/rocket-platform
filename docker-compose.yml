@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rocket
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no arquivo .env}
+      POSTGRES_DB: rocket
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - rocket-postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - rocket-redis:/data
+
+volumes:
+  rocket-postgres:
+  rocket-redis:

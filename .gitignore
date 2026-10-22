@@ -1,0 +1,21 @@
+node_modules/
+dist/
+**/*.tsbuildinfo
+
+# Keep local environment values out of Git; publish only the safe template.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Generated and local data.
+apps/*/dist/
+apps/api/prisma/*.db
+apps/api/prisma/*.db-journal
+apps/api/src/generated/
+coverage/
+*.log
+npm-debug.log*

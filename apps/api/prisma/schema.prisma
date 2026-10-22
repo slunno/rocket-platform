@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserStatus {
+  ONLINE
+  AWAY
+  OFFLINE
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum ConversationType {
+  CHANNEL
+  DIRECT
+  GROUP
+}
+
+model User {
+  id                  String               @id @default(cuid())
+  username            String               @unique
+  displayName         String
+  email               String?              @unique
+  avatarUrl           String?
+  status              UserStatus           @default(OFFLINE)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  workspaceMemberships WorkspaceMember[]
+  conversations       ConversationMember[]
+  messages            Message[]
+  reactions           Reaction[]
+}
+
+model Workspace {
+  id          String            @id @default(cuid())
+  name        String
+  slug        String            @unique
+  createdAt   DateTime          @default(now())
+  members     WorkspaceMember[]
+  conversations Conversation[]
+}
+
+model WorkspaceMember {
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, userId])
+  @@index([userId])
+}
+
+model Conversation {
+  id          String              @id @default(cuid())
+  type        ConversationType
+  name        String
+  description String?
+  isPrivate   Boolean             @default(false)
+  workspaceId String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  workspace   Workspace?          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members     ConversationMember[]
+  messages    Message[]
+
+  @@index([workspaceId, type])
+  @@index([updatedAt])
+}
+
+model ConversationMember {
+  conversationId String
+  userId         String
+  joinedAt       DateTime     @default(now())
+  lastReadAt     DateTime?
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId, joinedAt])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  authorId       String
+  text           String       @db.Text
+  replyToId      String?
+  createdAt      DateTime     @default(now())
+  editedAt       DateTime?
+  deletedAt      DateTime?
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  author         User         @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  replyTo        Message?     @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies        Message[]    @relation("MessageReplies")
+  attachments    Attachment[]
+  reactions      Reaction[]
+
+  @@index([conversationId, createdAt])
+  @@index([authorId, createdAt])
+  @@index([replyToId])
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  messageId String
+  fileName  String
+  mimeType  String
+  sizeBytes BigInt
+  storageKey String
+  createdAt DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+}
+
+model Reaction {
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId, emoji])
+  @@index([messageId])
+}
