@@ -9,6 +9,8 @@ datasource db {
 
 enum UserStatus {
   ONLINE
+  BUSY
+  DO_NOT_DISTURB
   AWAY
   OFFLINE
 }
@@ -26,26 +28,70 @@ enum ConversationType {
 }
 
 model User {
-  id                  String               @id @default(cuid())
-  username            String               @unique
-  displayName         String
-  email               String?              @unique
-  avatarUrl           String?
-  status              UserStatus           @default(OFFLINE)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
+  id                   String               @id @default(cuid())
+  username             String               @unique
+  displayName          String
+  email                String?              @unique
+  passwordHash         String?
+  avatarUrl            String?
+  jobTitle             String?
+  timeZone             String               @default("America/Sao_Paulo")
+  locale               String               @default("pt-BR")
+  status               UserStatus           @default(OFFLINE)
+  statusMessage        String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
   workspaceMemberships WorkspaceMember[]
-  conversations       ConversationMember[]
-  messages            Message[]
-  reactions           Reaction[]
+  conversations        ConversationMember[]
+  messages             Message[]
+  reactions            Reaction[]
+  authSessions         AuthSession[]
+  passwordResetTokens  PasswordResetToken[]
+}
+
+model AuthSession {
+  id               String    @id @default(cuid())
+  userId           String
+  familyId         String
+  refreshTokenHash String    @unique
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  replacedById     String?
+  userAgent        String?
+  ipAddress        String?
+  createdAt        DateTime  @default(now())
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt, expiresAt])
+  @@index([familyId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt, expiresAt])
+}
+
+model AuthThrottle {
+  key             String    @id
+  failedCount     Int       @default(0)
+  windowStartedAt DateTime
+  lockedUntil     DateTime?
+  updatedAt       DateTime  @updatedAt
 }
 
 model Workspace {
-  id          String            @id @default(cuid())
-  name        String
-  slug        String            @unique
-  createdAt   DateTime          @default(now())
-  members     WorkspaceMember[]
+  id            String            @id @default(cuid())
+  name          String
+  slug          String            @unique
+  createdAt     DateTime          @default(now())
+  members       WorkspaceMember[]
   conversations Conversation[]
 }
 
@@ -62,15 +108,15 @@ model WorkspaceMember {
 }
 
 model Conversation {
-  id          String              @id @default(cuid())
+  id          String               @id @default(cuid())
   type        ConversationType
   name        String
   description String?
-  isPrivate   Boolean             @default(false)
+  isPrivate   Boolean              @default(false)
   workspaceId String?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  workspace   Workspace?          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  workspace   Workspace?           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members     ConversationMember[]
   messages    Message[]
 
@@ -112,14 +158,14 @@ model Message {
 }
 
 model Attachment {
-  id        String   @id @default(cuid())
-  messageId String
-  fileName  String
-  mimeType  String
-  sizeBytes BigInt
+  id         String   @id @default(cuid())
+  messageId  String
+  fileName   String
+  mimeType   String
+  sizeBytes  BigInt
   storageKey String
-  createdAt DateTime @default(now())
-  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  message    Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([messageId])
 }
