@@ -6,6 +6,7 @@ import { env } from './env.js';
 import { validateAccessToken } from './auth.js';
 import { prisma } from './lib/prisma.js';
 import { createApiRouter } from './routes.js';
+import { getChannelContext } from './organization/routes.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -69,11 +70,46 @@ io.on('connection', async (socket) => {
     },
   );
 
-  const memberships = await prisma.conversationMember.findMany({
-    where: { userId: socket.data.userId },
-    select: { conversationId: true },
+  socket.on(
+    'channel:join',
+    async (channelId: unknown, acknowledge?: (result: { ok: boolean }) => void) => {
+      try {
+        if (typeof channelId !== 'string') throw new Error('Invalid channel.');
+        const access = await getChannelContext(channelId, socket.data.userId as string);
+        if (!access?.isMember) throw new Error('Channel access denied.');
+        await socket.join(`channel:${channelId}`);
+        acknowledge?.({ ok: true });
+      } catch {
+        acknowledge?.({ ok: false });
+      }
+    },
+  );
+
+  socket.on('channel:leave', async (channelId: unknown) => {
+    if (typeof channelId === 'string') await socket.leave(`channel:${channelId}`);
   });
-  memberships.forEach(({ conversationId }) => socket.join(`conversation:${conversationId}`));
+
+  const [conversationMemberships, channelMemberships] = await Promise.all([
+    prisma.conversationMember.findMany({
+      where: { userId: socket.data.userId },
+      select: { conversationId: true },
+    }),
+    prisma.channel.findMany({
+      where: {
+        archivedAt: null,
+        team: { archivedAt: null },
+        OR: [
+          { visibility: 'PUBLIC', team: { members: { some: { userId: socket.data.userId } } } },
+          { visibility: 'PRIVATE', members: { some: { userId: socket.data.userId } } },
+        ],
+      },
+      select: { id: true },
+    }),
+  ]);
+  conversationMemberships.forEach(({ conversationId }) =>
+    socket.join(`conversation:${conversationId}`),
+  );
+  channelMemberships.forEach(({ id }) => socket.join(`channel:${id}`));
 });
 
 server.listen(env.API_PORT, () =>

@@ -4,21 +4,21 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 
 ## Resumo
 
-| Bloco                                        | Status       | Objetivo e critério de aceite                                                                                                                                        |
-| -------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0 — Fundação e higiene                       | ✅ Concluído | Shared package, validação Zod, qualidade e migração inicial configurados; CI aplicou migração e seed em PostgreSQL e confirmou a inicialização HTTP da API e da web. |
-| 1 — Design system e shell                    | ✅ Concluído | Shell responsivo, tokens monocromáticos, três temas persistidos, rotas principais, componentes separados e Lighthouse de acessibilidade 100.                         |
-| 2 — Autenticação e perfil reais              | ✅ Concluído | Cadastro, login, renovação rotativa, logout, recuperação e perfil testados com Argon2id, cookies seguros e rate limit.                                               |
-| 3 — Organização, equipes e canais            | ⏳ Pendente  | Workspace → equipes → canais, papéis e permissões de servidor; membros acessam apenas conteúdo autorizado.                                                           |
-| 4 — Mensageria completa                      | ⏳ Pendente  | Cursor, idempotência, edição, exclusão, threads, reações, menções, leitura e eventos em tempo real entre dois usuários.                                              |
-| 5 — Chats 1:1 e em grupo                     | ⏳ Pendente  | Busca de pessoas, DMs idempotentes, grupos, participantes, silenciar e fixar; sem duplicação de conversas.                                                           |
-| 6 — Arquivos e anexos                        | ⏳ Pendente  | MinIO e StorageProvider com upload, preview e download autorizados, respeitando limites e tipos permitidos.                                                          |
-| 7 — Presença, Atividade e Notificações       | ⏳ Pendente  | Presença via Redis, feed, notificações e preferências consistentes entre instâncias.                                                                                 |
-| 8 — Busca                                    | ⏳ Pendente  | Busca PostgreSQL por mensagens, pessoas, canais e arquivos; resultados obedecem permissões.                                                                          |
-| 9 — Calendário e Reuniões                    | ⏳ Pendente  | Calendário, eventos e reuniões LiveKit com autorização, áudio/vídeo e compartilhamento entre participantes.                                                          |
-| 10 — Abas de canal e produtividade           | ⏳ Pendente  | Abas configuráveis de publicações, arquivos, notas e tarefas, com itens salvos/pinados persistidos.                                                                  |
-| 11 — Administração, segurança e conformidade | ⏳ Pendente  | Administração, auditoria, retenção, LGPD e checklist sem vulnerabilidades altas abertas.                                                                             |
-| 12 — Qualidade, observabilidade e entrega    | ⏳ Pendente  | E2E, logs e métricas, healthchecks, imagens Docker e deploy; instalação limpa e suíte E2E verdes no CI.                                                              |
+| Bloco                                        | Status          | Objetivo e critério de aceite                                                                                                                                        |
+| -------------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 — Fundação e higiene                       | ✅ Concluído    | Shared package, validação Zod, qualidade e migração inicial configurados; CI aplicou migração e seed em PostgreSQL e confirmou a inicialização HTTP da API e da web. |
+| 1 — Design system e shell                    | ✅ Concluído    | Shell responsivo, tokens monocromáticos, três temas persistidos, rotas principais, componentes separados e Lighthouse de acessibilidade 100.                         |
+| 2 — Autenticação e perfil reais              | ✅ Concluído    | Cadastro, login, renovação rotativa, logout, recuperação e perfil testados com Argon2id, cookies seguros e rate limit.                                               |
+| 3 — Organização, equipes e canais            | 🚧 Em andamento | Workspace → equipes → canais, papéis e permissões de servidor; membros acessam apenas conteúdo autorizado.                                                           |
+| 4 — Mensageria completa                      | ⏳ Pendente     | Cursor, idempotência, edição, exclusão, threads, reações, menções, leitura e eventos em tempo real entre dois usuários.                                              |
+| 5 — Chats 1:1 e em grupo                     | ⏳ Pendente     | Busca de pessoas, DMs idempotentes, grupos, participantes, silenciar e fixar; sem duplicação de conversas.                                                           |
+| 6 — Arquivos e anexos                        | ⏳ Pendente     | MinIO e StorageProvider com upload, preview e download autorizados, respeitando limites e tipos permitidos.                                                          |
+| 7 — Presença, Atividade e Notificações       | ⏳ Pendente     | Presença via Redis, feed, notificações e preferências consistentes entre instâncias.                                                                                 |
+| 8 — Busca                                    | ⏳ Pendente     | Busca PostgreSQL por mensagens, pessoas, canais e arquivos; resultados obedecem permissões.                                                                          |
+| 9 — Calendário e Reuniões                    | ⏳ Pendente     | Calendário, eventos e reuniões LiveKit com autorização, áudio/vídeo e compartilhamento entre participantes.                                                          |
+| 10 — Abas de canal e produtividade           | ⏳ Pendente     | Abas configuráveis de publicações, arquivos, notas e tarefas, com itens salvos/pinados persistidos.                                                                  |
+| 11 — Administração, segurança e conformidade | ⏳ Pendente     | Administração, auditoria, retenção, LGPD e checklist sem vulnerabilidades altas abertas.                                                                             |
+| 12 — Qualidade, observabilidade e entrega    | ⏳ Pendente     | E2E, logs e métricas, healthchecks, imagens Docker e deploy; instalação limpa e suíte E2E verdes no CI.                                                              |
 
 ## Critérios e tarefas por bloco
 
@@ -113,6 +113,13 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 - **Aceite:** ambiente limpo sobe com um comando e suíte E2E passa no CI.
 
 ## Registro de execução
+
+### 2026-10-23 — Bloco 3 em andamento
+
+- **Status:** 🚧 Implementação concluída localmente; aguarda validação de integração com PostgreSQL no CI antes de fechar.
+- **Entregue no checkout:** modelo Prisma separado para equipe/canal e chat, migração que transfere canais, associações e mensagens antigas, criação automática do canal `geral`, papéis de workspace e autorização na API e nos sockets; convites de sete dias com token armazenado em hash e envio por `MailProvider`; gestão de equipe/canal/membros, entrada em equipes públicas e preferências individuais de fixar/ocultar; árvore de navegação e diálogos próprios, incluindo aceitação de convite após autenticação.
+- **Validação local parcial:** `npm run typecheck`, `npm run lint`, `npm run test` (24 aprovados; 3 testes de integração ignorados sem PostgreSQL local), `npm run build`, `npm run format:check`, `git diff --check` e `npm audit --audit-level=moderate` passaram; o audit encontrou zero vulnerabilidades. Uma verificação visual com API mockada cobriu cadastro, criação de equipe e canal e o destino do diálogo de convite. `docker` e `psql` não estão instalados no host; a migração, o seed e os testes integrados ainda precisam ser confirmados pelo CI.
+- **Próxima etapa:** enviar o bloco para que o CI valide migração, seed, autorização e inicialização; corrigir eventuais falhas antes de marcar o bloco como concluído.
 
 ### 2026-10-22 — Bloco 0 concluído
 

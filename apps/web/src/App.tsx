@@ -5,6 +5,7 @@ import { ChatPage } from './features/chat/ChatPage';
 import { EmptyRoutePage } from './features/activity/EmptyRoutePage';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { AuthPage } from './auth/AuthPage';
+import { InviteAcceptPage } from './auth/InviteAcceptPage';
 
 function LoadingSession() {
   return (
@@ -20,15 +21,23 @@ function RequireAuth() {
   const location = useLocation();
   if (state === 'loading') return <LoadingSession />;
   if (state === 'anonymous') {
-    return <Navigate to="/entrar" replace state={{ from: location.pathname }} />;
+    return (
+      <Navigate to="/entrar" replace state={{ from: `${location.pathname}${location.search}` }} />
+    );
   }
   return <Outlet />;
 }
 
 function GuestOnly() {
   const { state } = useAuth();
+  const location = useLocation();
   if (state === 'loading') return <LoadingSession />;
-  if (state === 'authenticated') return <Navigate to="/chat/produto" replace />;
+  if (state === 'authenticated') {
+    const requestedPath = (location.state as { from?: string } | null)?.from;
+    return (
+      <Navigate to={requestedPath?.startsWith('/') ? requestedPath : '/chat/produto'} replace />
+    );
+  }
   return <Outlet />;
 }
 
@@ -40,6 +49,9 @@ export function AppRoutes() {
         <Route path="cadastro" element={<AuthPage mode="register" />} />
         <Route path="recuperar-senha" element={<AuthPage mode="forgot" />} />
         <Route path="redefinir-senha" element={<AuthPage mode="reset" />} />
+      </Route>
+      <Route element={<RequireAuth />}>
+        <Route path="convites/aceitar" element={<InviteAcceptPage />} />
       </Route>
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>

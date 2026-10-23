@@ -1823,6 +1823,308 @@ kbd {
   line-height: 1.7;
 }
 
+.organization-onboarding {
+  gap: 16px;
+}
+
+.organization-onboarding .button {
+  margin-top: 6px;
+}
+
+.chat-no-conversation {
+  flex: 1;
+  gap: 10px;
+}
+
+.workspace-select-label,
+.workspace-select-label select {
+  min-width: 0;
+  width: 100%;
+}
+
+.workspace-select-label select {
+  padding: 3px 20px 3px 0;
+  border: 0;
+  color: var(--text-primary);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.team-tree {
+  display: grid;
+  gap: 4px;
+}
+
+.team-tree-section {
+  min-width: 0;
+}
+
+.team-tree-heading,
+.team-channel-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+}
+
+.team-expand-button {
+  display: flex;
+  min-width: 0;
+  min-height: 34px;
+  flex: 1;
+  align-items: center;
+  gap: 7px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  background: transparent;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.team-expand-button:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.team-expand-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-tree-actions,
+.team-channel-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+.team-channel-list {
+  display: grid;
+  gap: 2px;
+  padding-left: 13px;
+}
+
+.team-channel-row .conversation-row {
+  min-width: 0;
+  flex: 1;
+}
+
+.channel-option-button {
+  display: grid;
+  width: 25px;
+  height: 27px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.channel-option-button:hover {
+  color: var(--text-primary);
+  background: var(--surface-2);
+}
+
+.public-channel-join {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  background: transparent;
+  text-align: left;
+  font-size: 10px;
+}
+
+.public-channel-join:hover,
+.show-hidden-channels:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.public-channel-join span:nth-child(2) {
+  flex: 1;
+}
+
+.join-label {
+  color: var(--brand);
+  font-weight: 700;
+}
+
+.show-hidden-channels {
+  min-height: 29px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: transparent;
+  text-align: left;
+  font-size: 10px;
+}
+
+.organization-form,
+.organization-manager {
+  display: grid;
+  gap: 12px;
+  max-height: calc(100dvh - 110px);
+  overflow: auto;
+}
+
+.organization-form label,
+.invite-link-label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.organization-form input,
+.organization-form textarea,
+.organization-form select,
+.invite-link-label input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  color: var(--text-primary);
+  background: var(--surface-base);
+  font-size: 12px;
+}
+
+.organization-form textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.organization-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.organization-add-member {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.organization-manager > .button {
+  justify-self: start;
+}
+
+.dialog-description {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.organization-member-list {
+  display: grid;
+  max-height: 220px;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.organization-member-list li {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.workspace-member-list li {
+  flex-wrap: wrap;
+}
+
+.workspace-member-list li > span {
+  flex: 1 1 140px;
+}
+
+.workspace-member-list select {
+  min-height: 30px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  background: var(--surface-base);
+  font-size: 9px;
+}
+
+.organization-member-list li > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.organization-member-list strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.organization-member-list small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.button-quiet {
+  min-height: 30px;
+  padding: 0 8px;
+  border-color: transparent;
+  color: var(--text-muted);
+  background: transparent;
+  font-size: 9px;
+}
+
+.button-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.archive-confirmation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+}
+
+.archive-confirmation p {
+  width: 100%;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
 .status-indicator-busy {
   background: var(--warning) !important;
 }

@@ -53,56 +53,187 @@ async function main() {
     });
   }
 
-  const specs = [
+  const teams = [
     {
-      id: 'produto',
-      name: 'produto-e-estilo',
-      description: 'Desenvolvimento de produto, modelagem e calendário de coleção.',
-      type: 'CHANNEL' as const,
-      members: ['demo-user', 'ana', 'marcos', 'luiz'],
+      slug: 'produto-e-estilo',
+      name: 'Produto e Estilo',
+      description: 'Desenvolvimento, modelagem e calendário de coleção.',
+      channel: {
+        id: 'produto',
+        slug: 'produto-e-estilo',
+        name: 'produto-e-estilo',
+        description: 'Desenvolvimento de produto, modelagem e calendário de coleção.',
+        members: ['demo-user', 'ana', 'marcos', 'luiz'],
+      },
     },
     {
-      id: 'geral',
-      name: 'geral',
-      description: 'Avisos e alinhamentos gerais da AKR Brands.',
-      type: 'CHANNEL' as const,
-      members: people.map((person) => person.id),
+      slug: 'comercial',
+      name: 'Comercial',
+      description: 'Metas, representantes e relacionamento com os canais de venda.',
+      channel: {
+        id: 'comercial',
+        slug: 'comercial',
+        name: 'comercial',
+        description: 'Metas, representantes e novidades das coleções.',
+        members: ['demo-user', 'ana', 'marcos', 'luiz'],
+      },
     },
     {
-      id: 'comercial',
-      name: 'comercial',
-      description: 'Metas, representantes e novidades das coleções.',
-      type: 'CHANNEL' as const,
-      members: ['demo-user', 'ana', 'marcos', 'luiz'],
-    },
-    {
-      id: 'producao',
-      name: 'producao',
+      slug: 'producao',
+      name: 'Produção',
       description: 'Planejamento e acompanhamento das ordens de produção.',
-      type: 'CHANNEL' as const,
-      members: ['demo-user', 'ana', 'marcos', 'luiz'],
+      channel: {
+        id: 'producao',
+        slug: 'producao',
+        name: 'producao',
+        description: 'Planejamento e acompanhamento das ordens de produção.',
+        members: ['demo-user', 'ana', 'marcos', 'luiz'],
+      },
     },
     {
-      id: 'marketing',
-      name: 'marketing',
+      slug: 'marketing',
+      name: 'Marketing',
       description: 'Campanhas, conteúdo e materiais das marcas.',
-      type: 'CHANNEL' as const,
-      members: ['demo-user', 'ana', 'bruna', 'luiz'],
+      channel: {
+        id: 'marketing',
+        slug: 'marketing',
+        name: 'marketing',
+        description: 'Campanhas, conteúdo e materiais das marcas.',
+        members: ['demo-user', 'ana', 'bruna', 'luiz'],
+      },
     },
     {
-      id: 'logistica',
-      name: 'logistica',
-      description: 'Estoque, expedição e entregas para os canais de venda.',
-      type: 'CHANNEL' as const,
-      members: ['demo-user', 'marcos', 'bruna'],
+      slug: 'logistica',
+      name: 'Logística',
+      description: 'Estoque, expedição e entregas.',
+      channel: {
+        id: 'logistica',
+        slug: 'logistica',
+        name: 'logistica',
+        description: 'Estoque, expedição e entregas para os canais de venda.',
+        members: ['demo-user', 'marcos', 'bruna'],
+      },
     },
     {
-      id: 'ti',
-      name: 'ti',
+      slug: 'ti',
+      name: 'Tecnologia',
       description: 'Suporte interno, sistemas e melhorias de tecnologia.',
-      type: 'CHANNEL' as const,
-      members: ['demo-user', 'marcos', 'luiz'],
+      channel: {
+        id: 'ti',
+        slug: 'ti',
+        name: 'ti',
+        description: 'Suporte interno, sistemas e melhorias de tecnologia.',
+        members: ['demo-user', 'marcos', 'luiz'],
+      },
     },
+  ];
+
+  const generalTeam = await prisma.team.upsert({
+    where: { workspaceId_slug: { workspaceId: workspace.id, slug: 'akr-brands' } },
+    update: { name: 'AKR Brands', archivedAt: null },
+    create: {
+      workspaceId: workspace.id,
+      name: 'AKR Brands',
+      slug: 'akr-brands',
+      description: 'Espaço principal da organização.',
+    },
+  });
+  const migratedGeneralChannel = await prisma.channel.findUnique({
+    where: { teamId_slug: { teamId: generalTeam.id, slug: 'geral' } },
+  });
+  const generalChannel = migratedGeneralChannel
+    ? await prisma.channel.update({
+        where: { id: migratedGeneralChannel.id },
+        data: {
+          name: 'geral',
+          description: 'Avisos e alinhamentos gerais da AKR Brands.',
+          visibility: 'PUBLIC',
+          archivedAt: null,
+        },
+      })
+    : await prisma.channel.upsert({
+        where: { id: 'geral' },
+        update: {
+          teamId: generalTeam.id,
+          name: 'geral',
+          slug: 'geral',
+          description: 'Avisos e alinhamentos gerais da AKR Brands.',
+          visibility: 'PUBLIC',
+          archivedAt: null,
+        },
+        create: {
+          id: 'geral',
+          teamId: generalTeam.id,
+          name: 'geral',
+          slug: 'geral',
+          description: 'Avisos e alinhamentos gerais da AKR Brands.',
+          visibility: 'PUBLIC',
+        },
+      });
+
+  for (const person of people) {
+    await prisma.teamMember.upsert({
+      where: { teamId_userId: { teamId: generalTeam.id, userId: person.id } },
+      update: {},
+      create: { teamId: generalTeam.id, userId: person.id },
+    });
+    await prisma.channelMember.upsert({
+      where: { channelId_userId: { channelId: generalChannel.id, userId: person.id } },
+      update: {},
+      create: { channelId: generalChannel.id, userId: person.id },
+    });
+  }
+
+  for (const teamSpec of teams) {
+    const team = await prisma.team.upsert({
+      where: { workspaceId_slug: { workspaceId: workspace.id, slug: teamSpec.slug } },
+      update: { name: teamSpec.name, description: teamSpec.description, archivedAt: null },
+      create: {
+        workspaceId: workspace.id,
+        name: teamSpec.name,
+        slug: teamSpec.slug,
+        description: teamSpec.description,
+      },
+    });
+    await prisma.teamMember.upsert({
+      where: { teamId_userId: { teamId: team.id, userId: 'demo-user' } },
+      update: {},
+      create: { teamId: team.id, userId: 'demo-user' },
+    });
+    const channel = await prisma.channel.upsert({
+      where: { id: teamSpec.channel.id },
+      update: {
+        teamId: team.id,
+        name: teamSpec.channel.name,
+        slug: teamSpec.channel.slug,
+        description: teamSpec.channel.description,
+        visibility: 'PUBLIC',
+        archivedAt: null,
+      },
+      create: {
+        id: teamSpec.channel.id,
+        teamId: team.id,
+        name: teamSpec.channel.name,
+        slug: teamSpec.channel.slug,
+        description: teamSpec.channel.description,
+        visibility: 'PUBLIC',
+      },
+    });
+    for (const userId of teamSpec.channel.members) {
+      await prisma.teamMember.upsert({
+        where: { teamId_userId: { teamId: team.id, userId } },
+        update: {},
+        create: { teamId: team.id, userId },
+      });
+      await prisma.channelMember.upsert({
+        where: { channelId_userId: { channelId: channel.id, userId } },
+        update: {},
+        create: { channelId: channel.id, userId },
+      });
+    }
+  }
+
+  const directConversationSpecs = [
     {
       id: 'dm-ana',
       name: 'Ana Souza',
@@ -126,7 +257,7 @@ async function main() {
     },
   ];
 
-  for (const spec of specs) {
+  for (const spec of directConversationSpecs) {
     await prisma.conversation.upsert({
       where: { id: spec.id },
       update: { name: spec.name, description: spec.description, type: spec.type },
@@ -135,7 +266,6 @@ async function main() {
         name: spec.name,
         description: spec.description,
         type: spec.type,
-        workspaceId: workspace.id,
       },
     });
     for (const userId of spec.members) {
@@ -147,32 +277,32 @@ async function main() {
     }
   }
 
-  const existing = await prisma.message.count({ where: { conversationId: 'produto' } });
+  const existing = await prisma.message.count({ where: { channelId: 'produto' } });
   if (existing === 0) {
     await prisma.message.createMany({
       data: [
         {
-          conversationId: 'produto',
+          channelId: 'produto',
           authorId: 'ana',
           text: 'Bom dia, time! Separei as referências de tecido e modelagem para a próxima coleção. Vou compartilhar o material aqui.',
         },
         {
-          conversationId: 'produto',
+          channelId: 'produto',
           authorId: 'marcos',
           text: 'A proposta de cores está alinhada com o calendário. Também revisei as medidas da primeira peça piloto.',
         },
         {
-          conversationId: 'produto',
+          channelId: 'produto',
           authorId: 'demo-user',
           text: 'Ótimo. Vamos confirmar os prazos com Produção antes de fechar a grade de tamanhos.',
         },
         {
-          conversationId: 'produto',
+          channelId: 'produto',
           authorId: 'luiz',
           text: 'Atualizei a ficha técnica com os comentários da prova. A versão revisada está pronta para validação.',
         },
         {
-          conversationId: 'produto',
+          channelId: 'produto',
           authorId: 'ana',
           text: 'Perfeito, vou consolidar os ajustes e levar a aprovação para a reunião de amanhã.',
         },

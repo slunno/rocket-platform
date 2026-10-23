@@ -95,6 +95,194 @@ export const resetPassword = (token: string, password: string) =>
 
 export const startDemoSession = () => authRequest<AuthSession>('/demo');
 
+export type WorkspaceRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'GUEST';
+export type ChannelVisibility = 'PUBLIC' | 'PRIVATE';
+export type RemoteChannel = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  visibility: ChannelVisibility;
+  joined: boolean;
+  isFavorite: boolean;
+  isHidden: boolean;
+  memberCount: number;
+};
+export type RemoteTeam = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  joined: boolean;
+  memberCount: number;
+  channels: RemoteChannel[];
+};
+export type RemoteWorkspace = {
+  id: string;
+  name: string;
+  slug: string;
+  role: WorkspaceRole;
+};
+export type RemoteWorkspaceDetail = RemoteWorkspace & { teams: RemoteTeam[] };
+export type RemoteWorkspaceMember = {
+  id: string;
+  email: string | null;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  role?: WorkspaceRole;
+};
+export type RemoteInvite = {
+  id: string;
+  email: string;
+  role: WorkspaceRole;
+  expiresAt: string;
+  acceptedAt: string | null;
+  team: { id: string; name: string } | null;
+  invitedBy: { displayName: string };
+};
+export type CreatedInvite = {
+  inviteUrl: string;
+  email: string;
+  role: 'MEMBER' | 'GUEST';
+  expiresAt: string;
+};
+
+export const getWorkspaces = (token: string) =>
+  request<RemoteWorkspace[]>('/api/workspaces', token);
+export const createWorkspace = (token: string, name: string) =>
+  request<RemoteWorkspace>('/api/workspaces', token, {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+export const getWorkspace = (token: string, workspaceId: string) =>
+  request<RemoteWorkspaceDetail>(`/api/workspaces/${encodeURIComponent(workspaceId)}`, token);
+export const getWorkspaceMembers = (token: string, workspaceId: string) =>
+  request<RemoteWorkspaceMember[]>(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/members`,
+    token,
+  );
+export const removeWorkspaceMember = (token: string, workspaceId: string, userId: string) =>
+  request<void>(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}`,
+    token,
+    { method: 'DELETE' },
+  );
+export const updateWorkspaceMemberRole = (
+  token: string,
+  workspaceId: string,
+  userId: string,
+  role: 'ADMIN' | 'MEMBER' | 'GUEST',
+) =>
+  request<RemoteWorkspaceMember>(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}`,
+    token,
+    { method: 'PATCH', body: JSON.stringify({ role }) },
+  );
+export const createTeam = (
+  token: string,
+  workspaceId: string,
+  input: { name: string; description?: string },
+) =>
+  request<RemoteTeam>(`/api/workspaces/${encodeURIComponent(workspaceId)}/teams`, token, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+export const updateTeam = (
+  token: string,
+  teamId: string,
+  input: { name?: string; description?: string | null },
+) =>
+  request<Pick<RemoteTeam, 'id' | 'name' | 'slug' | 'description'>>(
+    `/api/teams/${encodeURIComponent(teamId)}`,
+    token,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
+export const archiveTeam = (token: string, teamId: string) =>
+  request<void>(`/api/teams/${encodeURIComponent(teamId)}`, token, { method: 'DELETE' });
+export const joinTeam = (token: string, teamId: string) =>
+  request<void>(`/api/teams/${encodeURIComponent(teamId)}/join`, token, { method: 'POST' });
+export const addTeamMember = (token: string, teamId: string, userId: string) =>
+  request<void>(`/api/teams/${encodeURIComponent(teamId)}/members`, token, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  });
+export const removeTeamMember = (token: string, teamId: string, userId: string) =>
+  request<void>(
+    `/api/teams/${encodeURIComponent(teamId)}/members/${encodeURIComponent(userId)}`,
+    token,
+    { method: 'DELETE' },
+  );
+export const getTeamMembers = (token: string, teamId: string) =>
+  request<RemoteWorkspaceMember[]>(`/api/teams/${encodeURIComponent(teamId)}/members`, token);
+export const createChannel = (
+  token: string,
+  teamId: string,
+  input: { name: string; description?: string; visibility: ChannelVisibility },
+) =>
+  request<Omit<RemoteChannel, 'isFavorite' | 'isHidden' | 'memberCount'>>(
+    `/api/teams/${encodeURIComponent(teamId)}/channels`,
+    token,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+export const updateChannel = (
+  token: string,
+  channelId: string,
+  input: { name?: string; description?: string | null; visibility?: ChannelVisibility },
+) =>
+  request<Pick<RemoteChannel, 'id' | 'name' | 'slug' | 'description' | 'visibility'>>(
+    `/api/channels/${encodeURIComponent(channelId)}`,
+    token,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
+export const archiveChannel = (token: string, channelId: string) =>
+  request<void>(`/api/channels/${encodeURIComponent(channelId)}`, token, { method: 'DELETE' });
+export const addChannelMember = (token: string, channelId: string, userId: string) =>
+  request<void>(`/api/channels/${encodeURIComponent(channelId)}/members`, token, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  });
+export const removeChannelMember = (token: string, channelId: string, userId: string) =>
+  request<void>(
+    `/api/channels/${encodeURIComponent(channelId)}/members/${encodeURIComponent(userId)}`,
+    token,
+    { method: 'DELETE' },
+  );
+export const getChannelMembers = (token: string, channelId: string) =>
+  request<RemoteWorkspaceMember[]>(`/api/channels/${encodeURIComponent(channelId)}/members`, token);
+export const updateChannelPreference = (
+  token: string,
+  channelId: string,
+  input: { favorite?: boolean; hidden?: boolean },
+) =>
+  request<{ favorite: boolean; hidden: boolean }>(
+    `/api/channels/${encodeURIComponent(channelId)}/preference`,
+    token,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
+export const createWorkspaceInvite = (
+  token: string,
+  workspaceId: string,
+  input: { email: string; role: 'MEMBER' | 'GUEST'; teamId?: string },
+) =>
+  request<CreatedInvite>(`/api/workspaces/${encodeURIComponent(workspaceId)}/invites`, token, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+export const getWorkspaceInvites = (token: string, workspaceId: string) =>
+  request<RemoteInvite[]>(`/api/workspaces/${encodeURIComponent(workspaceId)}/invites`, token);
+export const cancelWorkspaceInvite = (token: string, workspaceId: string, inviteId: string) =>
+  request<void>(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/invites/${encodeURIComponent(inviteId)}`,
+    token,
+    { method: 'DELETE' },
+  );
+export const acceptWorkspaceInvite = (token: string, invite: string) =>
+  request<RemoteWorkspace & { teamId?: string | null }>('/api/invites/accept', token, {
+    method: 'POST',
+    body: JSON.stringify({ token: invite }),
+  });
+
 async function request<T>(path: string, token: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
@@ -110,7 +298,7 @@ async function request<T>(path: string, token: string, init?: RequestInit): Prom
 
 export type RemoteConversation = {
   id: string;
-  type: 'CHANNEL' | 'DIRECT' | 'GROUP';
+  type: 'DIRECT' | 'GROUP';
   name: string;
   description?: string | null;
   memberCount: number;
@@ -129,6 +317,7 @@ export type RemoteConversation = {
 export type RemoteMessage = {
   id: string;
   conversationId?: string;
+  channelId?: string;
   text: string;
   createdAt: string;
   author: {
@@ -145,8 +334,16 @@ export const getConversations = (token: string) =>
   request<RemoteConversation[]>('/api/conversations', token);
 export const getMessages = (token: string, id: string) =>
   request<RemoteMessage[]>(`/api/conversations/${id}/messages`, token);
+export const getChannelMessages = (token: string, id: string) =>
+  request<RemoteMessage[]>(`/api/channels/${encodeURIComponent(id)}/messages`, token);
+export const getOrganizationChannelMessages = getChannelMessages;
 export const sendMessage = (token: string, id: string, text: string) =>
   request<RemoteMessage>(`/api/conversations/${id}/messages`, token, {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
+export const sendChannelMessage = (token: string, id: string, text: string) =>
+  request<RemoteMessage>(`/api/channels/${encodeURIComponent(id)}/messages`, token, {
     method: 'POST',
     body: JSON.stringify({ text }),
   });

@@ -1,0 +1,443 @@
+import { createServer, type Server as HttpServer } from 'node:http';
+import { randomUUID } from 'node:crypto';
+import type { AddressInfo } from 'node:net';
+import type { Server as SocketServer } from 'socket.io';
+import express from 'express';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+const integrationTestsEnabled = process.env.AUTH_INTEGRATION_TESTS === 'true';
+
+describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integrados', () => {
+  let server: HttpServer;
+  let baseUrl: string;
+  let prisma: typeof import('../lib/prisma.js').prisma;
+  const suffix = randomUUID();
+  const ownerEmail = `rocket-owner-${suffix}@example.test`;
+  const memberEmail = `rocket-member-${suffix}@example.test`;
+  const guestEmail = `rocket-guest-${suffix}@example.test`;
+  const workspaceIds: string[] = [];
+  const userEmails = [ownerEmail, memberEmail, guestEmail];
+
+  beforeAll(async () => {
+    const [{ authRouter }, organization, client] = await Promise.all([
+      import('../auth/routes.js'),
+      import('./routes.js'),
+      import('../lib/prisma.js'),
+    ]);
+    prisma = client.prisma;
+    const app = express();
+    app.use(express.json());
+    app.use('/auth', authRouter);
+    const socketServer = {
+      in: () => ({ socketsJoin: async () => undefined, socketsLeave: async () => undefined }),
+    } as unknown as SocketServer;
+    app.use('/', organization.createOrganizationRouter(socketServer));
+    server = createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+
+  afterAll(async () => {
+    if (workspaceIds.length)
+      await prisma.workspace.deleteMany({ where: { id: { in: workspaceIds } } });
+    await prisma.user.deleteMany({ where: { email: { in: userEmails } } });
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+    await prisma.$disconnect();
+  });
+
+  async function register(email: string, displayName: string) {
+    const response = await fetch(`${baseUrl}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, displayName, password: 'Rocket-Strong-Pass-2026!' }),
+    });
+    expect(response.status).toBe(201);
+    return (await response.json()) as { accessToken: string };
+  }
+
+  async function request(method: string, path: string, accessToken: string, body?: unknown) {
+    return fetch(`${baseUrl}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  }
+
+  async function createAndAcceptInvite(
+    ownerToken: string,
+    recipientToken: string,
+    email: string,
+    workspaceId: string,
+    options: { role?: 'MEMBER' | 'GUEST'; teamId?: string } = {},
+  ) {
+    const created = await request('POST', `/workspaces/${workspaceId}/invites`, ownerToken, {
+      email,
+      ...options,
+    });
+    expect(created.status).toBe(201);
+    const invite = (await created.json()) as { inviteUrl: string };
+    const token = new URL(invite.inviteUrl).searchParams.get('token');
+    expect(token).toBeTruthy();
+    return request('POST', '/invites/accept', recipientToken, { token });
+  }
+
+  it('preserva isolamento, gerencia membros, convites e preferências de canal', async () => {
+    const owner = await register(ownerEmail, 'Proprietária de Teste');
+    const member = await register(memberEmail, 'Membro de Teste');
+    const guest = await register(guestEmail, 'Convidada de Teste');
+
+    const createdWorkspace = await request('POST', '/workspaces', owner.accessToken, {
+      name: 'AKR Brands Teste',
+    });
+    expect(createdWorkspace.status).toBe(201);
+    const workspace = (await createdWorkspace.json()) as { id: string; teams: never[] };
+    workspaceIds.push(workspace.id);
+
+    const workspaceDetailResponse = await request(
+      'GET',
+      `/workspaces/${workspace.id}`,
+      owner.accessToken,
+    );
+    const workspaceDetail = (await workspaceDetailResponse.json()) as {
+      teams: { id: string; channels: { id: string; name: string }[] }[];
+    };
+    const defaultTeam = workspaceDetail.teams[0];
+    expect(defaultTeam.channels.some(({ name }) => name === 'geral')).toBe(true);
+
+    const teamCreated = await request(
+      'POST',
+      `/workspaces/${workspace.id}/teams`,
+      owner.accessToken,
+      {
+        name: 'Produto e Estilo',
+        description: 'Coleções e desenvolvimento de produto.',
+      },
+    );
+    expect(teamCreated.status).toBe(201);
+    const team = (await teamCreated.json()) as { id: string };
+    const renamedTeam = await request('PATCH', `/teams/${team.id}`, owner.accessToken, {
+      name: 'Produto e Modelagem',
+      description: 'Desenvolvimento das coleções.',
+    });
+    expect(renamedTeam.status).toBe(200);
+
+    const publicCreated = await request('POST', `/teams/${team.id}/channels`, owner.accessToken, {
+      name: 'Coleção',
+      visibility: 'PUBLIC',
+    });
+    const privateCreated = await request('POST', `/teams/${team.id}/channels`, owner.accessToken, {
+      name: 'Planejamento confidencial',
+      visibility: 'PRIVATE',
+    });
+    expect(publicCreated.status).toBe(201);
+    expect(privateCreated.status).toBe(201);
+    const publicChannel = (await publicCreated.json()) as { id: string; joined: boolean };
+    const privateChannel = (await privateCreated.json()) as { id: string; joined: boolean };
+    expect(publicChannel.joined).toBe(true);
+    expect(privateChannel.joined).toBe(true);
+    expect(
+      (
+        await request('PATCH', `/channels/${publicChannel.id}`, owner.accessToken, {
+          name: 'Coleções 2027',
+          description: 'Planejamento da próxima coleção.',
+        })
+      ).status,
+    ).toBe(200);
+    const archivedChannelResponse = await request(
+      'POST',
+      `/teams/${team.id}/channels`,
+      owner.accessToken,
+      { name: 'Canal temporário', visibility: 'PUBLIC' },
+    );
+    const archivedChannel = (await archivedChannelResponse.json()) as { id: string };
+    expect(
+      (await request('DELETE', `/channels/${archivedChannel.id}`, owner.accessToken)).status,
+    ).toBe(204);
+    expect(
+      (await request('GET', `/channels/${archivedChannel.id}/messages`, owner.accessToken)).status,
+    ).toBe(404);
+    const archivedTeamResponse = await request(
+      'POST',
+      `/workspaces/${workspace.id}/teams`,
+      owner.accessToken,
+      { name: 'Equipe temporária' },
+    );
+    const archivedTeam = (await archivedTeamResponse.json()) as { id: string };
+    expect((await request('DELETE', `/teams/${archivedTeam.id}`, owner.accessToken)).status).toBe(
+      204,
+    );
+
+    const canceledInviteResponse = await request(
+      'POST',
+      `/workspaces/${workspace.id}/invites`,
+      owner.accessToken,
+      { email: `cancel-${suffix}@example.test` },
+    );
+    expect(canceledInviteResponse.status).toBe(201);
+    const invites = (await (
+      await request('GET', `/workspaces/${workspace.id}/invites`, owner.accessToken)
+    ).json()) as {
+      id: string;
+      email: string;
+    }[];
+    const canceledInvite = invites.find(({ email }) => email === `cancel-${suffix}@example.test`);
+    expect(canceledInvite).toBeDefined();
+    expect(
+      (
+        await request(
+          'DELETE',
+          `/workspaces/${workspace.id}/invites/${canceledInvite!.id}`,
+          owner.accessToken,
+        )
+      ).status,
+    ).toBe(204);
+
+    expect(
+      (
+        await request('POST', `/workspaces/${workspace.id}/teams`, member.accessToken, {
+          name: 'Sem permissão',
+        })
+      ).status,
+    ).toBe(404);
+
+    const memberInvite = await createAndAcceptInvite(
+      owner.accessToken,
+      member.accessToken,
+      memberEmail,
+      workspace.id,
+    );
+    expect(memberInvite.status).toBe(200);
+    expect(
+      (
+        await request('POST', `/workspaces/${workspace.id}/teams`, member.accessToken, {
+          name: 'Sem permissão',
+        })
+      ).status,
+    ).toBe(403);
+    const memberId = (
+      await prisma.user.findUniqueOrThrow({ where: { email: memberEmail }, select: { id: true } })
+    ).id;
+    expect(
+      (
+        await request(
+          'PATCH',
+          `/workspaces/${workspace.id}/members/${memberId}`,
+          owner.accessToken,
+          { role: 'ADMIN' },
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await request('POST', `/workspaces/${workspace.id}/teams`, member.accessToken, {
+          name: 'Equipe administrada',
+        })
+      ).status,
+    ).toBe(201);
+    expect(
+      (
+        await request(
+          'DELETE',
+          `/workspaces/${workspace.id}/members/${memberId}`,
+          member.accessToken,
+        )
+      ).status,
+    ).toBe(403);
+    const beforeJoinResponse = await request(
+      'GET',
+      `/workspaces/${workspace.id}`,
+      member.accessToken,
+    );
+    const beforeJoin = (await beforeJoinResponse.json()) as {
+      teams: {
+        id: string;
+        joined: boolean;
+        channels: { id: string; visibility: string; joined: boolean }[];
+      }[];
+    };
+    expect(beforeJoin.teams.find(({ id }) => id === team.id)?.joined).toBe(false);
+    expect(
+      (await request('GET', `/channels/${privateChannel.id}/messages`, member.accessToken)).status,
+    ).toBe(403);
+    expect((await request('POST', `/teams/${team.id}/join`, member.accessToken)).status).toBe(204);
+    expect(
+      (await request('GET', `/channels/${publicChannel.id}/messages`, member.accessToken)).status,
+    ).toBe(200);
+    expect(
+      (
+        await request('PATCH', `/channels/${publicChannel.id}`, owner.accessToken, {
+          visibility: 'PRIVATE',
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await request('GET', `/channels/${publicChannel.id}/messages`, member.accessToken)).status,
+    ).toBe(200);
+    expect(
+      (
+        await request('PATCH', `/channels/${publicChannel.id}`, owner.accessToken, {
+          visibility: 'PUBLIC',
+        })
+      ).status,
+    ).toBe(200);
+
+    const favorite = await request(
+      'PATCH',
+      `/channels/${publicChannel.id}/preference`,
+      member.accessToken,
+      { favorite: true, hidden: true },
+    );
+    expect(favorite.status).toBe(200);
+    expect(await favorite.json()).toEqual({ favorite: true, hidden: true });
+
+    const guestInvite = await createAndAcceptInvite(
+      owner.accessToken,
+      guest.accessToken,
+      guestEmail,
+      workspace.id,
+      {
+        role: 'GUEST',
+        teamId: team.id,
+      },
+    );
+    expect(guestInvite.status).toBe(200);
+    expect(
+      (await request('GET', `/workspaces/${workspace.id}/members`, guest.accessToken)).status,
+    ).toBe(403);
+    const guestWorkspace = (await (
+      await request('GET', `/workspaces/${workspace.id}`, guest.accessToken)
+    ).json()) as {
+      teams: { id: string }[];
+    };
+    expect(guestWorkspace.teams.map(({ id }) => id)).toEqual([team.id]);
+    expect((await request('POST', `/teams/${defaultTeam.id}/join`, guest.accessToken)).status).toBe(
+      403,
+    );
+    const guestId = (
+      await prisma.user.findUniqueOrThrow({ where: { email: guestEmail }, select: { id: true } })
+    ).id;
+    expect(
+      (
+        await request(
+          'PATCH',
+          `/workspaces/${workspace.id}/members/${guestId}`,
+          member.accessToken,
+          { role: 'ADMIN' },
+        )
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await request(
+          'PATCH',
+          `/workspaces/${workspace.id}/members/${guestId}`,
+          owner.accessToken,
+          { role: 'MEMBER' },
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await request(
+          'PATCH',
+          `/workspaces/${workspace.id}/members/${(await prisma.user.findUniqueOrThrow({ where: { email: ownerEmail }, select: { id: true } })).id}`,
+          owner.accessToken,
+          { role: 'MEMBER' },
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await request('POST', `/teams/${defaultTeam.id}/members`, owner.accessToken, {
+          userId: guestId,
+        })
+      ).status,
+    ).toBe(204);
+    expect(
+      (
+        await request(
+          'PATCH',
+          `/workspaces/${workspace.id}/members/${guestId}`,
+          owner.accessToken,
+          { role: 'GUEST' },
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        (await (await request('GET', `/workspaces/${workspace.id}`, guest.accessToken)).json()) as {
+          teams: unknown[];
+        }
+      ).teams,
+    ).toHaveLength(0);
+    expect(
+      (await request('GET', `/channels/${publicChannel.id}/messages`, guest.accessToken)).status,
+    ).toBe(403);
+    expect(
+      (await request('POST', `/teams/${team.id}/members`, owner.accessToken, { userId: guestId }))
+        .status,
+    ).toBe(204);
+    const guestChannels = await request(
+      'GET',
+      `/channels/${publicChannel.id}/messages`,
+      guest.accessToken,
+    );
+    expect(guestChannels.status).toBe(200);
+    expect(
+      (await request('GET', `/channels/${privateChannel.id}/messages`, guest.accessToken)).status,
+    ).toBe(403);
+
+    expect(
+      (
+        await request('POST', `/channels/${privateChannel.id}/members`, owner.accessToken, {
+          userId: 'missing-user',
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await request('POST', `/channels/${privateChannel.id}/members`, owner.accessToken, {
+          userId: memberId,
+        })
+      ).status,
+    ).toBe(204);
+    expect(
+      (await request('GET', `/channels/${privateChannel.id}/messages`, member.accessToken)).status,
+    ).toBe(200);
+    expect(
+      (
+        await request(
+          'DELETE',
+          `/channels/${privateChannel.id}/members/${memberId}`,
+          owner.accessToken,
+        )
+      ).status,
+    ).toBe(204);
+    expect(
+      (await request('GET', `/channels/${privateChannel.id}/messages`, member.accessToken)).status,
+    ).toBe(403);
+    expect(
+      (await request('DELETE', `/teams/${team.id}/members/${memberId}`, member.accessToken)).status,
+    ).toBe(204);
+    expect(
+      (await request('GET', `/channels/${publicChannel.id}/messages`, member.accessToken)).status,
+    ).toBe(403);
+    expect(
+      (
+        await request(
+          'DELETE',
+          `/workspaces/${workspace.id}/members/${memberId}`,
+          owner.accessToken,
+        )
+      ).status,
+    ).toBe(204);
+    expect((await request('GET', `/workspaces/${workspace.id}`, member.accessToken)).status).toBe(
+      404,
+    );
+  });
+});

@@ -64,6 +64,53 @@ export const profileUpdateInputSchema = z
   })
   .refine((value) => Object.keys(value).length > 0, 'Informe ao menos um campo para atualizar.');
 
+const organizationNameSchema = z.string().trim().min(2).max(80);
+const descriptionSchema = z.string().trim().max(300).nullable().optional();
+
+export const workspaceCreateInputSchema = z.object({ name: organizationNameSchema });
+export const workspaceUpdateInputSchema = z
+  .object({ name: organizationNameSchema })
+  .partial()
+  .refine((value) => Object.keys(value).length > 0);
+export const workspaceMemberRoleUpdateInputSchema = z.object({
+  role: z.enum(['ADMIN', 'MEMBER', 'GUEST']),
+});
+
+export const teamCreateInputSchema = z.object({
+  name: organizationNameSchema,
+  description: descriptionSchema,
+});
+export const teamUpdateInputSchema = z
+  .object({ name: organizationNameSchema.optional(), description: descriptionSchema })
+  .refine((value) => Object.keys(value).length > 0);
+
+export const channelVisibilitySchema = z.enum(['PUBLIC', 'PRIVATE']);
+export const channelCreateInputSchema = z.object({
+  name: organizationNameSchema,
+  description: descriptionSchema,
+  visibility: channelVisibilitySchema.default('PUBLIC'),
+});
+export const channelUpdateInputSchema = z
+  .object({
+    name: organizationNameSchema.optional(),
+    description: descriptionSchema,
+    visibility: channelVisibilitySchema.optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0);
+
+export const workspaceInviteInputSchema = z.object({
+  email: emailSchema,
+  role: z.enum(['MEMBER', 'GUEST']).default('MEMBER'),
+  teamId: z.string().min(1).optional(),
+});
+export const workspaceInviteAcceptInputSchema = z.object({
+  token: z.string().min(32).max(256),
+});
+export const memberInputSchema = z.object({ userId: z.string().min(1) });
+export const channelPreferenceInputSchema = z
+  .object({ favorite: z.boolean().optional(), hidden: z.boolean().optional() })
+  .refine((value) => Object.keys(value).length > 0);
+
 export const socketEvents = {
   messageCreated: 'message:created',
   messageUpdated: 'message:updated',
@@ -83,4 +130,13 @@ export type UserSummary = z.infer<typeof userSummarySchema>;
 export type RegisterInput = z.infer<typeof registerInputSchema>;
 export type LoginInput = z.infer<typeof loginInputSchema>;
 export type ProfileUpdateInput = z.infer<typeof profileUpdateInputSchema>;
+export type WorkspaceCreateInput = z.infer<typeof workspaceCreateInputSchema>;
+export type WorkspaceUpdateInput = z.infer<typeof workspaceUpdateInputSchema>;
+export type WorkspaceMemberRoleUpdateInput = z.infer<typeof workspaceMemberRoleUpdateInputSchema>;
+export type TeamCreateInput = z.infer<typeof teamCreateInputSchema>;
+export type TeamUpdateInput = z.infer<typeof teamUpdateInputSchema>;
+export type ChannelCreateInput = z.infer<typeof channelCreateInputSchema>;
+export type ChannelUpdateInput = z.infer<typeof channelUpdateInputSchema>;
+export type WorkspaceInviteInput = z.infer<typeof workspaceInviteInputSchema>;
+export type WorkspaceInviteAcceptInput = z.infer<typeof workspaceInviteAcceptInputSchema>;
 export type SocketEvent = (typeof socketEvents)[keyof typeof socketEvents];

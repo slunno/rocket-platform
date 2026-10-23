@@ -2,9 +2,16 @@ import { describe, expect, it } from 'vitest';
 import {
   loginInputSchema,
   messageInputSchema,
+  channelCreateInputSchema,
+  channelPreferenceInputSchema,
+  memberInputSchema,
   profileUpdateInputSchema,
   registerInputSchema,
+  teamCreateInputSchema,
   userSummarySchema,
+  workspaceInviteInputSchema,
+  workspaceInviteAcceptInputSchema,
+  workspaceMemberRoleUpdateInputSchema,
 } from './index.js';
 
 describe('contratos compartilhados', () => {
@@ -65,5 +72,52 @@ describe('contratos compartilhados', () => {
       }).success,
     ).toBe(true);
     expect(profileUpdateInputSchema.safeParse({ status: 'UNKNOWN' }).success).toBe(false);
+  });
+
+  it('valida equipes e canais com descrição opcional e visibilidade explícita', () => {
+    expect(
+      teamCreateInputSchema.parse({
+        name: 'Produto e Estilo',
+        description: 'Coleção e modelagem.',
+      }),
+    ).toMatchObject({
+      name: 'Produto e Estilo',
+    });
+    expect(
+      channelCreateInputSchema.parse({ name: 'Coleção', visibility: 'PRIVATE' }),
+    ).toMatchObject({
+      name: 'Coleção',
+      visibility: 'PRIVATE',
+    });
+    expect(channelCreateInputSchema.safeParse({ name: 'x', visibility: 'INTERNAL' }).success).toBe(
+      false,
+    );
+  });
+
+  it('normaliza e valida convites, membros e preferências pessoais de canal', () => {
+    expect(
+      workspaceInviteInputSchema.parse({ email: '  PESSOA@EXAMPLE.COM ', teamId: 'team-1' }),
+    ).toMatchObject({
+      email: 'pessoa@example.com',
+      role: 'MEMBER',
+      teamId: 'team-1',
+    });
+    expect(
+      workspaceInviteInputSchema.safeParse({ email: 'pessoa@example.com', role: 'OWNER' }).success,
+    ).toBe(false);
+    expect(workspaceInviteAcceptInputSchema.safeParse({ token: 'x'.repeat(32) }).success).toBe(
+      true,
+    );
+    expect(workspaceInviteAcceptInputSchema.safeParse({ token: 'curto' }).success).toBe(false);
+    expect(memberInputSchema.safeParse({ userId: '' }).success).toBe(false);
+    expect(channelPreferenceInputSchema.parse({ favorite: true })).toEqual({ favorite: true });
+    expect(channelPreferenceInputSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('aceita somente funções que podem ser atribuídas a membros do espaço', () => {
+    expect(workspaceMemberRoleUpdateInputSchema.parse({ role: 'ADMIN' })).toEqual({
+      role: 'ADMIN',
+    });
+    expect(workspaceMemberRoleUpdateInputSchema.safeParse({ role: 'OWNER' }).success).toBe(false);
   });
 });

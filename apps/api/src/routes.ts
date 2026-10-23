@@ -4,6 +4,7 @@ import { messageInputSchema, paginationQuerySchema } from '@rocket/shared';
 import { prisma } from './lib/prisma.js';
 import { requireAuth } from './auth.js';
 import { attachAuthSocketServer, authRouter } from './auth/routes.js';
+import { createOrganizationRouter, getChannelContext } from './organization/routes.js';
 
 const getRouteParam = (value: string | string[] | undefined) =>
   Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
@@ -32,6 +33,7 @@ export function createApiRouter(io: Server) {
   });
 
   router.use('/auth', authRouter);
+  router.use('/', createOrganizationRouter(io));
 
   router.get('/conversations', requireAuth, async (req, res, next) => {
     try {
@@ -69,7 +71,11 @@ export function createApiRouter(io: Server) {
         memberships.map(({ conversation }) => ({
           id: conversation.id,
           type: conversation.type,
-          name: conversation.name,
+          name:
+            conversation.type === 'DIRECT'
+              ? (conversation.members.find(({ user }) => user.id !== req.userId)?.user
+                  .displayName ?? conversation.name)
+              : conversation.name,
           description: conversation.description,
           memberCount: conversation._count.members,
           preview: conversation.messages[0]?.text,
@@ -158,6 +164,96 @@ export function createApiRouter(io: Server) {
       io.to(`conversation:${conversationId}`).emit('message:created', {
         ...normalizedMessage,
         conversationId,
+      });
+      return res.status(201).json(normalizedMessage);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.get('/channels/:channelId/messages', requireAuth, async (req, res, next) => {
+    try {
+      const channelId = getRouteParam(req.params.channelId);
+      const context = await getChannelContext(channelId, req.userId!);
+      if (!context) {
+        return res.status(404).json({
+          error: { code: 'CHANNEL_NOT_FOUND', message: 'Canal não encontrado.' },
+        });
+      }
+      if (!context.isMember) {
+        return res.status(403).json({
+          error: {
+            code: 'CHANNEL_MEMBERSHIP_REQUIRED',
+            message: 'Entre na equipe para acessar este canal.',
+          },
+        });
+      }
+      const parsedQuery = paginationQuerySchema.safeParse({ limit: req.query.limit });
+      if (!parsedQuery.success) {
+        return res.status(400).json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'O limite deve ser um número entre 1 e 100.',
+          },
+        });
+      }
+      const messages = await prisma.message.findMany({
+        where: { channelId, deletedAt: null },
+        take: parsedQuery.data.limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          author: {
+            select: { id: true, username: true, displayName: true, avatarUrl: true, status: true },
+          },
+          reactions: { select: { emoji: true } },
+        },
+      });
+      return res.json(messages.reverse().map(withReactionCounts));
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/channels/:channelId/messages', requireAuth, async (req, res, next) => {
+    try {
+      const channelId = getRouteParam(req.params.channelId);
+      const context = await getChannelContext(channelId, req.userId!);
+      if (!context) {
+        return res.status(404).json({
+          error: { code: 'CHANNEL_NOT_FOUND', message: 'Canal não encontrado.' },
+        });
+      }
+      if (!context.isMember) {
+        return res.status(403).json({
+          error: {
+            code: 'CHANNEL_MEMBERSHIP_REQUIRED',
+            message: 'Entre na equipe para participar deste canal.',
+          },
+        });
+      }
+      const parsedBody = messageInputSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'A mensagem deve conter de 1 a 10.000 caracteres.',
+          },
+        });
+      }
+      const message = await prisma.message.create({
+        data: { channelId, authorId: req.userId!, text: parsedBody.data.text },
+        include: {
+          author: {
+            select: { id: true, username: true, displayName: true, avatarUrl: true, status: true },
+          },
+          reactions: { select: { emoji: true } },
+        },
+      });
+      await prisma.channel.update({ where: { id: channelId }, data: { updatedAt: new Date() } });
+      const normalizedMessage = withReactionCounts(message);
+      io.to(`channel:${channelId}`).emit('message:created', {
+        ...normalizedMessage,
+        channelId,
       });
       return res.status(201).json(normalizedMessage);
     } catch (error) {

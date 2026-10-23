@@ -3,16 +3,20 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { AppRoutes } from '../../App';
+import { acceptWorkspaceInvite } from '../../api';
 import { TopBar } from '../../layout/TopBar';
 import { Avatar } from './Avatar';
 import { Tabs } from './Tabs';
 import { ThemeProvider } from '../../hooks/useTheme';
 import { conversations, me } from '../../demoData';
 import { MessageSearchDialog } from '../../features/chat/components/MessageSearchDialog';
+import { OrganizationDialog } from '../../features/chat/components/OrganizationDialog';
 import { AuthProvider } from '../../auth/AuthContext';
+import { InviteAcceptPage } from '../../auth/InviteAcceptPage';
 import type { AuthSession } from '../../api';
 
 vi.mock('socket.io-client', () => ({
@@ -31,6 +35,43 @@ vi.mock('../../api', async (importOriginal) => {
     ...actual,
     getConversations: vi.fn().mockResolvedValue([]),
     getMessages: vi.fn().mockResolvedValue([]),
+    getChannelMessages: vi.fn().mockResolvedValue([]),
+    acceptWorkspaceInvite: vi.fn(),
+    getWorkspaces: vi
+      .fn()
+      .mockResolvedValue([
+        { id: 'workspace-test', name: 'AKR Brands', slug: 'akr-brands', role: 'OWNER' },
+      ]),
+    getWorkspace: vi.fn().mockResolvedValue({
+      id: 'workspace-test',
+      name: 'AKR Brands',
+      slug: 'akr-brands',
+      role: 'OWNER',
+      teams: [
+        {
+          id: 'geral',
+          name: 'Geral',
+          slug: 'geral',
+          description: null,
+          joined: true,
+          memberCount: 1,
+          channels: [
+            {
+              id: 'produto',
+              name: 'produto',
+              slug: 'produto',
+              description: null,
+              visibility: 'PUBLIC',
+              joined: true,
+              isFavorite: false,
+              isHidden: false,
+              memberCount: 1,
+            },
+          ],
+        },
+      ],
+    }),
+    getWorkspaceMembers: vi.fn().mockResolvedValue([]),
     refreshSession: vi.fn().mockRejectedValue(new Error('No active session')),
   };
 });
@@ -51,6 +92,10 @@ const initialSession: AuthSession = {
     statusMessage: null,
   },
 };
+
+function CurrentPath() {
+  return <p>{useLocation().pathname}</p>;
+}
 
 beforeEach(() => window.localStorage.clear());
 afterEach(() => {
@@ -143,7 +188,7 @@ describe('componentes de interface', () => {
     );
   });
 
-  it('abre um canal diretamente pela rota de equipe e canal', () => {
+  it('abre um canal diretamente pela rota de equipe e canal', async () => {
     render(
       <MemoryRouter initialEntries={['/equipes/geral/produto']}>
         <AuthProvider initialSession={initialSession}>
@@ -154,8 +199,79 @@ describe('componentes de interface', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('heading', { name: 'produto' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'produto' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Equipes' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('aceita um convite uma vez e navega corretamente em StrictMode', async () => {
+    vi.mocked(acceptWorkspaceInvite).mockResolvedValue({
+      id: 'workspace-test',
+      name: 'AKR Brands',
+      slug: 'akr-brands',
+      role: 'OWNER',
+      teamId: 'geral',
+    });
+
+    render(
+      <StrictMode>
+        <AuthProvider initialSession={initialSession}>
+          <MemoryRouter initialEntries={['/convites/aceitar?token=token-de-teste']}>
+            <Routes>
+              <Route path="/convites/aceitar" element={<InviteAcceptPage />} />
+              <Route path="*" element={<CurrentPath />} />
+            </Routes>
+          </MemoryRouter>
+        </AuthProvider>
+      </StrictMode>,
+    );
+
+    expect(await screen.findByText('/equipes/geral/produto')).toBeInTheDocument();
+    expect(acceptWorkspaceInvite).toHaveBeenCalledOnce();
+  });
+
+  it('cria canais pelo diálogo com nome, descrição e visibilidade', async () => {
+    const user = userEvent.setup();
+    const onCreateChannel = vi.fn().mockResolvedValue(undefined);
+    render(
+      <OrganizationDialog
+        dialog={{ mode: 'channel', teamId: 'team-1', teamName: 'Produto e Estilo' }}
+        workspaceName="AKR Brands"
+        workspaceMembers={[]}
+        teamMembers={[]}
+        channelMembers={[]}
+        availableMembers={[]}
+        onClose={vi.fn()}
+        onCreateWorkspace={vi.fn()}
+        onCreateTeam={vi.fn()}
+        onCreateChannel={onCreateChannel}
+        onCreateInvite={vi.fn()}
+        onAddTeamMember={vi.fn()}
+        onRemoveTeamMember={vi.fn()}
+        onRemoveWorkspaceMember={vi.fn()}
+        onUpdateWorkspaceMember={vi.fn()}
+        onAddChannelMember={vi.fn()}
+        onRemoveChannelMember={vi.fn()}
+        onUpdateTeam={vi.fn()}
+        onArchiveTeam={vi.fn()}
+        onUpdateChannel={vi.fn()}
+        onArchiveChannel={vi.fn()}
+        onInviteToTeam={vi.fn()}
+      />,
+    );
+
+    await user.type(screen.getByLabelText('Nome'), 'Coleção 2027');
+    await user.type(screen.getByLabelText('Descrição'), 'Lançamentos do primeiro semestre.');
+    await user.selectOptions(screen.getByLabelText('Visibilidade'), 'PRIVATE');
+    await user.click(screen.getByRole('button', { name: 'Criar canal' }));
+
+    await waitFor(() =>
+      expect(onCreateChannel).toHaveBeenCalledWith(
+        'team-1',
+        'Coleção 2027',
+        'Lançamentos do primeiro semestre.',
+        'PRIVATE',
+      ),
+    );
   });
 
   it('redireciona rotas privadas para entrar quando não há sessão', async () => {

@@ -32,4 +32,11 @@ export type Conversation = {
   unread?: number;
   lastMessage?: string;
   lastAt?: string;
+  teamId?: string;
+  teamName?: string;
+  visibility?: 'PUBLIC' | 'PRIVATE';
+  joined?: boolean;
+  isFavorite?: boolean;
+  isHidden?: boolean;
+  memberCount?: number;
 };

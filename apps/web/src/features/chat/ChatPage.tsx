@@ -1,19 +1,45 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { io, type Socket } from 'socket.io-client';
 import { Check } from 'lucide-react';
+import { me as demoMe } from '../../demoData';
 import {
-  conversations as demoConversations,
-  me as demoMe,
-  messages as demoMessages,
-} from '../../demoData';
-import {
+  addChannelMember,
+  addTeamMember,
+  archiveChannel,
+  archiveTeam,
   authUserToPerson,
+  createChannel,
+  createTeam,
+  createWorkspace,
+  createWorkspaceInvite,
+  getChannelMembers,
+  getChannelMessages,
   getConversations,
   getMessages,
+  getTeamMembers,
+  getWorkspace,
+  getWorkspaceMembers,
+  getWorkspaces,
+  joinTeam,
   mapRemoteMessage,
   mapRemotePerson,
+  removeChannelMember,
+  removeWorkspaceMember,
+  removeTeamMember,
+  sendChannelMessage,
   sendMessage,
+  updateChannel,
+  updateChannelPreference,
+  updateTeam,
+  updateWorkspaceMemberRole,
+  type CreatedInvite,
+  type RemoteChannel,
+  type RemoteTeam,
+  type RemoteWorkspace,
+  type RemoteWorkspaceDetail,
+  type RemoteWorkspaceMember,
+  type WorkspaceRole,
 } from '../../api';
 import type { Conversation, Message } from '../../types';
 import { useAuth } from '../../auth/AuthContext';
@@ -23,6 +49,7 @@ import { ConversationHeader } from './components/ConversationHeader';
 import { MessageComposer } from './components/MessageComposer';
 import { MessageFeed } from './components/MessageFeed';
 import { MessageSearchDialog } from './components/MessageSearchDialog';
+import { OrganizationDialog, type OrganizationDialogState } from './components/OrganizationDialog';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -30,18 +57,23 @@ export function ChatPage() {
   const { user, accessToken: token } = useAuth();
   const me = useMemo(() => (user ? authUserToPerson(user) : demoMe), [user]);
   const navigate = useNavigate();
+  const location = useLocation();
   const route = useParams<{ id?: string; teamId?: string; channelId?: string }>();
   const routeId = route.id ?? route.channelId;
-  const [activeId, setActiveId] = useState('produto');
-  const [convoList, setConvoList] = useState<Conversation[]>(() =>
-    user?.id === demoMe.id ? demoConversations : [],
+  const [workspaces, setWorkspaces] = useState<RemoteWorkspace[]>([]);
+  const [workspaceListLoaded, setWorkspaceListLoaded] = useState(false);
+  const [workspaceId, setWorkspaceId] = useState('');
+  const [workspace, setWorkspace] = useState<RemoteWorkspaceDetail | null>(null);
+  const [workspaceMembers, setWorkspaceMembers] = useState<RemoteWorkspaceMember[]>([]);
+  const [teamMembers, setTeamMembers] = useState<RemoteWorkspaceMember[]>([]);
+  const [channelMembers, setChannelMembers] = useState<RemoteWorkspaceMember[]>([]);
+  const [organizationDialog, setOrganizationDialog] = useState<OrganizationDialogState | null>(
+    null,
   );
-  const [messageMap, setMessageMap] = useState<Record<string, Message[]>>(() =>
-    user?.id === demoMe.id ? demoMessages : {},
-  );
-  const [loadedConversationIds, setLoadedConversationIds] = useState<Set<string>>(
-    () => new Set(user?.id === demoMe.id ? Object.keys(demoMessages) : []),
-  );
+  const [directConversations, setDirectConversations] = useState<Conversation[]>([]);
+  const [activeId, setActiveId] = useState('');
+  const [messageMap, setMessageMap] = useState<Record<string, Message[]>>({});
+  const [loadedConversationIds, setLoadedConversationIds] = useState<Set<string>>(new Set());
   const [text, setText] = useState('');
   const [query, setQuery] = useState('');
   const [online, setOnline] = useState(false);
@@ -65,64 +97,120 @@ export function ChatPage() {
   latestTokenRef.current = token;
   myIdRef.current = me.id;
 
-  useEffect(() => {
-    if (routeId) setActiveId(routeId);
-  }, [routeId]);
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(''), 3000);
+  }, []);
 
-  const active =
-    convoList.find((conversation) => conversation.id === activeId) ??
-    (user?.id === demoMe.id ? demoConversations[0] : undefined);
-  const activeMessages = messageMap[activeId] ?? [];
-  const isChannel = active?.kind === 'CHANNEL';
-  const visibleChannels = useMemo(
-    () =>
-      convoList.filter(
-        (conversation) =>
-          conversation.kind === 'CHANNEL' &&
-          conversation.name.toLowerCase().includes(query.toLowerCase()),
-      ),
-    [convoList, query],
-  );
-  const visibleDms = useMemo(
-    () =>
-      convoList.filter(
-        (conversation) =>
-          conversation.kind !== 'CHANNEL' &&
-          conversation.name.toLowerCase().includes(query.toLowerCase()),
-      ),
-    [convoList, query],
-  );
+  useEffect(() => {
+    if (!token) return;
+    void getWorkspaces(token)
+      .then((items) => {
+        setWorkspaces(items);
+        setWorkspaceListLoaded(true);
+        setWorkspaceId((current) => {
+          const requestedWorkspace = (location.state as { workspaceId?: string } | null)
+            ?.workspaceId;
+          if (
+            requestedWorkspace &&
+            items.some((workspaceItem) => workspaceItem.id === requestedWorkspace)
+          )
+            return requestedWorkspace;
+          if (current && items.some((workspaceItem) => workspaceItem.id === current))
+            return current;
+          return items[0]?.id ?? '';
+        });
+      })
+      .catch(() => {
+        setWorkspaceListLoaded(true);
+        showToast('Não foi possível carregar seus espaços de trabalho.');
+      });
+  }, [location.state, showToast, token]);
+
+  useEffect(() => {
+    if (!token || !workspaceId) {
+      setWorkspace(null);
+      setWorkspaceMembers([]);
+      return;
+    }
+    let active = true;
+    void getWorkspace(token, workspaceId)
+      .then(async (detail) => {
+        const members =
+          detail.role === 'GUEST' ? [] : await getWorkspaceMembers(token, workspaceId);
+        if (!active) return;
+        setWorkspace(detail);
+        setWorkspaceMembers(members);
+      })
+      .catch(() => {
+        if (active) showToast('Não foi possível abrir o espaço de trabalho.');
+      });
+    return () => {
+      active = false;
+    };
+  }, [showToast, token, workspaceId]);
 
   useEffect(() => {
     if (!token || !user) return;
     void getConversations(token)
       .then((remote) => {
-        const mapped = remote.map(
-          (conversation) =>
-            ({
-              id: conversation.id,
-              kind: conversation.type,
-              name:
-                conversation.type === 'CHANNEL'
-                  ? conversation.name
-                  : (conversation.members.find((member) => member.id !== user.id)?.displayName ??
-                    conversation.name),
-              description: conversation.description ?? undefined,
-              members: conversation.members.map(mapRemotePerson),
-              unread: conversation.unread,
-              lastMessage: conversation.preview,
-              lastAt: conversation.lastAt,
-            }) satisfies Conversation,
+        setDirectConversations(
+          remote.map((conversation) => ({
+            id: conversation.id,
+            kind: conversation.type,
+            name:
+              conversation.type === 'DIRECT'
+                ? (conversation.members.find((member) => member.id !== user.id)?.displayName ??
+                  conversation.name)
+                : conversation.name,
+            description: conversation.description ?? undefined,
+            members: conversation.members.map(mapRemotePerson),
+            unread: conversation.unread,
+            lastMessage: conversation.preview,
+            lastAt: conversation.lastAt,
+          })),
         );
-        setConvoList(mapped);
-        setMessageMap({});
-        setLoadedConversationIds(new Set());
-        const firstConversation =
-          mapped.find((conversation) => conversation.kind === 'CHANNEL') ?? mapped[0];
-        setActiveId(firstConversation?.id ?? '');
       })
       .catch(() => undefined);
   }, [token, user]);
+
+  const teams = workspace?.teams ?? [];
+  const channelConversations = useMemo(
+    () =>
+      teams.flatMap((team) =>
+        team.channels
+          .filter((channel) => channel.joined)
+          .map((channel) => toChannelConversation(team, channel)),
+      ),
+    [teams],
+  );
+  const conversations = useMemo(
+    () => [...channelConversations, ...directConversations],
+    [channelConversations, directConversations],
+  );
+  const active = conversations.find((conversation) => conversation.id === activeId);
+  const activeMessages = messageMap[activeId] ?? [];
+  const isChannel = active?.kind === 'CHANNEL';
+  const visibleDms = useMemo(
+    () =>
+      directConversations.filter((conversation) =>
+        conversation.name.toLowerCase().includes(query.toLowerCase()),
+      ),
+    [directConversations, query],
+  );
+  const workspaceRole: WorkspaceRole = workspace?.role ?? 'MEMBER';
+  const workspaceName =
+    workspace?.name ?? workspaces.find((item) => item.id === workspaceId)?.name ?? 'Rocket';
+
+  useEffect(() => {
+    if (routeId && conversations.some((conversation) => conversation.id === routeId)) {
+      setActiveId(routeId);
+      return;
+    }
+    if (conversations.length && !conversations.some(({ id }) => id === activeId)) {
+      setActiveId(conversations[0].id);
+    }
+  }, [activeId, conversations, routeId]);
 
   useEffect(() => {
     const handleOpenSearch = () => setShowSearch(true);
@@ -143,14 +231,15 @@ export function ChatPage() {
     socketRef.current = socket;
     socket.on('connect', () => setOnline(true));
     socket.on('disconnect', () => setOnline(false));
-    socket.on('message:created', (message) => {
+    socket.on('message:created', (message: Parameters<typeof mapRemoteMessage>[0]) => {
       const normalized = mapRemoteMessage(message, myIdRef.current);
-      const conversationId = message.conversationId ?? '';
+      const parentId = message.conversationId ?? message.channelId ?? '';
+      if (!parentId) return;
       setMessageMap((current) => {
-        const existing = current[conversationId] ?? [];
+        const existing = current[parentId] ?? [];
         return existing.some((item) => item.id === normalized.id)
           ? current
-          : { ...current, [conversationId]: [...existing, normalized] };
+          : { ...current, [parentId]: [...existing, normalized] };
       });
     });
     return () => {
@@ -171,17 +260,18 @@ export function ChatPage() {
   }, [token]);
 
   useEffect(() => {
-    if (!token || !activeId || loadedConversationIds.has(activeId)) return;
-    void getMessages(token, activeId)
+    if (!token || !active || loadedConversationIds.has(active.id)) return;
+    const load = active.kind === 'CHANNEL' ? getChannelMessages : getMessages;
+    void load(token, active.id)
       .then((remote) => {
         setMessageMap((current) => ({
           ...current,
-          [activeId]: remote.map((message) => mapRemoteMessage(message, me.id)),
+          [active.id]: remote.map((message) => mapRemoteMessage(message, me.id)),
         }));
-        setLoadedConversationIds((current) => new Set(current).add(activeId));
+        setLoadedConversationIds((current) => new Set(current).add(active.id));
       })
       .catch(() => undefined);
-  }, [activeId, loadedConversationIds, me.id, token]);
+  }, [active, loadedConversationIds, me.id, token]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'end' });
@@ -207,42 +297,30 @@ export function ChatPage() {
     }
   }, [sidebarWidth]);
 
-  if (!active) {
-    return (
-      <section className="chat-empty-state" aria-labelledby="empty-chat-title">
-        <div className="chat-empty-icon" aria-hidden="true">
-          ✦
-        </div>
-        <h1 id="empty-chat-title">Sua conta está pronta</h1>
-        <p>
-          {user?.displayName}, você ainda não participa de nenhuma conversa. Quando entrar em um
-          espaço de trabalho, suas mensagens aparecerão aqui.
-        </p>
-      </section>
-    );
-  }
-
   const openConversation = (conversation: Conversation) => {
     setActiveId(conversation.id);
-    navigate(
-      conversation.kind === 'CHANNEL'
-        ? `/equipes/geral/${encodeURIComponent(conversation.id)}`
-        : `/chat/${encodeURIComponent(conversation.id)}`,
-    );
-    setConvoList((items) =>
-      items.map((item) => (item.id === conversation.id ? { ...item, unread: 0 } : item)),
-    );
+    if (conversation.kind === 'CHANNEL') {
+      navigate(
+        `/equipes/${encodeURIComponent(conversation.teamId ?? '')}/${encodeURIComponent(conversation.id)}`,
+      );
+    } else {
+      navigate(`/chat/${encodeURIComponent(conversation.id)}`);
+    }
     setSidebarOpen(false);
   };
 
-  const showToast = (message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast(''), 2400);
+  const refreshOrganization = async () => {
+    if (!token || !workspaceId) return null;
+    const detail = await getWorkspace(token, workspaceId);
+    const members = detail.role === 'GUEST' ? [] : await getWorkspaceMembers(token, workspaceId);
+    setWorkspace(detail);
+    setWorkspaceMembers(members);
+    return detail;
   };
 
   const handleSend = async () => {
     const cleanText = text.trim();
-    if (!cleanText) return;
+    if (!cleanText || !active) return;
     setText('');
     const temporaryId = `local-${Date.now()}`;
     const optimistic: Message = {
@@ -257,64 +335,69 @@ export function ChatPage() {
     };
     setMessageMap((current) => ({
       ...current,
-      [activeId]: [...(current[activeId] ?? []), optimistic],
+      [active.id]: [...(current[active.id] ?? []), optimistic],
     }));
-    setConvoList((items) =>
-      items.map((item) =>
-        item.id === activeId ? { ...item, lastMessage: cleanText, lastAt: 'Agora' } : item,
-      ),
-    );
     if (token) {
       try {
-        const created = await sendMessage(token, activeId, cleanText);
+        const created =
+          active.kind === 'CHANNEL'
+            ? await sendChannelMessage(token, active.id, cleanText)
+            : await sendMessage(token, active.id, cleanText);
         setMessageMap((current) => {
-          const existing = current[activeId] ?? [];
+          const existing = current[active.id] ?? [];
           if (existing.some((message) => message.id === created.id)) {
             return {
               ...current,
-              [activeId]: existing.filter((message) => message.id !== temporaryId),
+              [active.id]: existing.filter((message) => message.id !== temporaryId),
             };
           }
           return {
             ...current,
-            [activeId]: existing.map((message) =>
+            [active.id]: existing.map((message) =>
               message.id === temporaryId ? mapRemoteMessage(created, me.id) : message,
             ),
           };
         });
       } catch {
-        showToast('Mensagem salva nesta sessão. Conecte o backend para sincronizar com a equipe.');
+        setMessageMap((current) => ({
+          ...current,
+          [active.id]: (current[active.id] ?? []).filter(({ id }) => id !== temporaryId),
+        }));
+        showToast('Não foi possível enviar a mensagem. Confira sua conexão e tente novamente.');
       }
     }
   };
 
-  const addChannel = () => {
-    const name = window.prompt('Nome do novo canal');
-    if (!name?.trim()) return;
-    const normalized = name.trim().replace(/^#/, '').toLowerCase().replace(/\s+/g, '-');
-    if (
-      convoList.some(
-        (conversation) => conversation.kind === 'CHANNEL' && conversation.name === normalized,
-      )
-    ) {
-      showToast('Esse canal já está na sua lista.');
-      return;
-    }
-    const newConversation: Conversation = {
-      id: `local-${Date.now()}`,
-      kind: 'CHANNEL',
-      name: normalized,
-      description: 'Um novo espaço para sua equipe.',
-      members: [me],
-    };
-    setConvoList((items) => [...items, newConversation]);
-    setMessageMap((current) => ({ ...current, [newConversation.id]: [] }));
-    openConversation(newConversation);
-    showToast('Canal criado para esta sessão.');
+  const beginManageTeam = async (team: RemoteTeam) => {
+    if (!token) return;
+    setTeamMembers(await getTeamMembers(token, team.id));
+    setOrganizationDialog({
+      mode: 'manage-team',
+      teamId: team.id,
+      teamName: team.name,
+      description: team.description,
+    });
   };
 
-  const getOtherPerson = (conversation: Conversation) =>
-    conversation.members.find((person) => person.id !== me.id) ?? conversation.members[0] ?? me;
+  const beginManageChannel = async (channel: RemoteChannel) => {
+    if (!token) return;
+    setChannelMembers(await getChannelMembers(token, channel.id));
+    setOrganizationDialog({
+      mode: 'manage-channel',
+      channelId: channel.id,
+      channelName: channel.name,
+      description: channel.description,
+      channelVisibility: channel.visibility,
+    });
+  };
+  const excludedMemberIds =
+    organizationDialog?.mode === 'manage-team'
+      ? new Set(teamMembers.map((member) => member.id))
+      : organizationDialog?.mode === 'manage-channel'
+        ? new Set(channelMembers.map((member) => member.id))
+        : new Set<string>();
+  const availableMembers = workspaceMembers.filter((member) => !excludedMemberIds.has(member.id));
+
   const dateGroups = activeMessages.reduce<{ date: string; messages: Message[] }[]>(
     (groups, message) => {
       const lastGroup = groups[groups.length - 1];
@@ -325,18 +408,135 @@ export function ChatPage() {
     [],
   );
 
+  if (!workspaceListLoaded) {
+    return (
+      <section className="chat-empty-state" role="status" aria-live="polite">
+        Carregando espaços de trabalho…
+      </section>
+    );
+  }
+
+  if (!workspaceId && !workspaces.length) {
+    return (
+      <section
+        className="chat-empty-state organization-onboarding"
+        aria-labelledby="empty-chat-title"
+      >
+        <div className="chat-empty-icon" aria-hidden="true">
+          ✦
+        </div>
+        <h1 id="empty-chat-title">Crie seu espaço de trabalho</h1>
+        <p>Organize sua comunicação em equipes, canais e conversas seguras.</p>
+        <button
+          className="button button-primary"
+          type="button"
+          onClick={() => setOrganizationDialog({ mode: 'workspace' })}
+        >
+          Criar espaço de trabalho
+        </button>
+        <OrganizationDialog
+          dialog={organizationDialog}
+          workspaceName="Rocket"
+          workspaceMembers={[]}
+          teamMembers={[]}
+          channelMembers={[]}
+          availableMembers={[]}
+          onClose={() => setOrganizationDialog(null)}
+          onCreateWorkspace={async (name) => {
+            if (!token) return;
+            const created = await createWorkspace(token, name);
+            setWorkspaces((items) => [...items, created]);
+            setWorkspaceId(created.id);
+            setOrganizationDialog(null);
+          }}
+          onCreateTeam={async () => undefined}
+          onCreateChannel={async () => undefined}
+          onCreateInvite={async () => {
+            throw new Error('Crie um espaço antes de convidar pessoas.');
+          }}
+          onAddTeamMember={async () => undefined}
+          onRemoveTeamMember={async () => undefined}
+          onRemoveWorkspaceMember={async () => undefined}
+          onUpdateWorkspaceMember={async () => undefined}
+          onAddChannelMember={async () => undefined}
+          onRemoveChannelMember={async () => undefined}
+          onUpdateTeam={async () => undefined}
+          onArchiveTeam={async () => undefined}
+          onUpdateChannel={async () => undefined}
+          onArchiveChannel={async () => undefined}
+          onInviteToTeam={() => undefined}
+        />
+      </section>
+    );
+  }
+
   return (
     <div className="chat-page" style={{ '--sidebar-width': `${sidebarWidth}px` } as CSSProperties}>
       <ChatSidebar
         activeId={activeId}
-        visibleChannels={visibleChannels}
         visibleDms={visibleDms}
+        teams={teams}
+        workspaces={workspaces}
+        workspaceId={workspaceId}
+        workspaceName={workspaceName}
+        workspaceRole={workspaceRole}
         sidebarOpen={sidebarOpen}
         online={online}
-        getOtherPerson={getOtherPerson}
+        getOtherPerson={(conversation) =>
+          conversation.members.find((person) => person.id !== me.id) ??
+          conversation.members[0] ??
+          me
+        }
         onSearch={() => setShowSearch(true)}
-        onAddChannel={addChannel}
+        onCreateTeam={() => setOrganizationDialog({ mode: 'team' })}
+        onCreateChannel={(teamId) => {
+          const team = teams.find((item) => item.id === teamId);
+          if (team) setOrganizationDialog({ mode: 'channel', teamId, teamName: team.name });
+        }}
+        onInvite={(teamId) => {
+          const team = teams.find((item) => item.id === teamId);
+          setOrganizationDialog({ mode: 'invite', teamId, teamName: team?.name });
+        }}
+        onManageTeam={(team) => void beginManageTeam(team)}
+        onManageWorkspace={() => setOrganizationDialog({ mode: 'manage-workspace' })}
+        onManageChannel={(channel) => void beginManageChannel(channel)}
+        onWorkspaceChange={(id) => {
+          setWorkspaceId(id);
+          setWorkspace(null);
+          setWorkspaceMembers([]);
+          setActiveId('');
+          setLoadedConversationIds(new Set());
+        }}
         onOpenConversation={openConversation}
+        onJoinTeam={(teamId, channelId) => {
+          if (!token) return;
+          void joinTeam(token, teamId)
+            .then(async () => {
+              await refreshOrganization();
+              showToast('Você entrou na equipe.');
+              const joinedTeam = teams.find((team) => team.id === teamId);
+              const requestedChannel = joinedTeam?.channels.find(
+                (channel) => channel.id === channelId,
+              );
+              if (joinedTeam && requestedChannel)
+                openConversation(
+                  toChannelConversation(joinedTeam, { ...requestedChannel, joined: true }),
+                );
+            })
+            .catch(() => showToast('Não foi possível entrar nesta equipe.'));
+        }}
+        onToggleFavorite={(channelId, favorite) => {
+          if (!token) return;
+          void updateChannelPreference(token, channelId, { favorite })
+            .then(refreshOrganization)
+            .catch(() => showToast('Não foi possível atualizar o canal.'));
+        }}
+        onToggleHidden={(channelId, hidden) => {
+          if (!token) return;
+          void updateChannelPreference(token, channelId, { hidden })
+            .then(refreshOrganization)
+            .catch(() => showToast('Não foi possível atualizar o canal.'));
+        }}
         onToast={showToast}
       />
       <button
@@ -355,8 +555,12 @@ export function ChatPage() {
         }}
         onPointerMove={(event) => {
           if (!resizeOrigin.current || event.buttons !== 1) return;
-          const nextWidth = resizeOrigin.current.width + event.clientX - resizeOrigin.current.x;
-          setSidebarWidth(Math.max(240, Math.min(420, nextWidth)));
+          setSidebarWidth(
+            Math.max(
+              240,
+              Math.min(420, resizeOrigin.current.width + event.clientX - resizeOrigin.current.x),
+            ),
+          );
         }}
         onPointerUp={() => {
           resizeOrigin.current = null;
@@ -373,59 +577,186 @@ export function ChatPage() {
           onClick={() => setSidebarOpen(false)}
         />
       )}
-      <section className="main-panel" aria-label="Conversa atual">
-        <ConversationHeader
-          active={active}
-          isChannel={isChannel}
-          showDetails={showDetails}
-          getOtherPerson={getOtherPerson}
-          onMobileMenu={() => setSidebarOpen(true)}
-          onSearch={() => setShowSearch(true)}
-          onCall={() => showToast('Chamadas de áudio e vídeo em breve.')}
-          onToggleDetails={() => setShowDetails((value) => !value)}
-          onMore={() => showToast('Mais opções de conversa em breve.')}
-        />
-        <div className="conversation-layout">
-          <section className="chat-column">
-            <MessageFeed
-              active={active}
-              isChannel={isChannel}
-              activeMessages={activeMessages}
-              dateGroups={dateGroups}
-              messagesEndRef={messagesEndRef}
-              me={me}
-              onShowDetails={() => setShowDetails(true)}
-              onToast={showToast}
-            />
-            <MessageComposer
-              activeName={active.name}
-              isChannel={isChannel}
-              text={text}
-              setText={setText}
-              onSend={handleSend}
-              onToast={showToast}
-            />
-          </section>
-          <ConversationDetails
+      {active ? (
+        <section className="main-panel" aria-label="Conversa atual">
+          <ConversationHeader
             active={active}
             isChannel={isChannel}
-            open={showDetails}
-            onClose={() => setShowDetails(false)}
-            onToast={showToast}
-            meId={me.id}
+            showDetails={showDetails}
+            getOtherPerson={(conversation) =>
+              conversation.members.find((person) => person.id !== me.id) ??
+              conversation.members[0] ??
+              me
+            }
+            onMobileMenu={() => setSidebarOpen(true)}
+            onSearch={() => setShowSearch(true)}
+            onCall={() => showToast('Chamadas de áudio e vídeo em breve.')}
+            onToggleDetails={() => setShowDetails((value) => !value)}
+            onMore={() => showToast('Mais opções de conversa em breve.')}
           />
-        </div>
-      </section>
+          <div className="conversation-layout">
+            <section className="chat-column">
+              <MessageFeed
+                active={active}
+                isChannel={isChannel}
+                activeMessages={activeMessages}
+                dateGroups={dateGroups}
+                messagesEndRef={messagesEndRef}
+                me={me}
+                onShowDetails={() => setShowDetails(true)}
+                onToast={showToast}
+              />
+              <MessageComposer
+                activeName={active.name}
+                isChannel={isChannel}
+                text={text}
+                setText={setText}
+                onSend={handleSend}
+                onToast={showToast}
+              />
+            </section>
+            <ConversationDetails
+              active={active}
+              isChannel={isChannel}
+              open={showDetails}
+              onClose={() => setShowDetails(false)}
+              onToast={showToast}
+              meId={me.id}
+            />
+          </div>
+        </section>
+      ) : (
+        <section
+          className="chat-empty-state chat-no-conversation"
+          aria-label="Nenhuma conversa selecionada"
+        >
+          <h1>Escolha um canal</h1>
+          <p>Selecione uma equipe ou canal no painel para começar.</p>
+        </section>
+      )}
       <MessageSearchDialog
         open={showSearch}
         query={query}
         setQuery={setQuery}
-        conversations={convoList}
-        getOtherPerson={getOtherPerson}
+        conversations={conversations}
+        getOtherPerson={(conversation) =>
+          conversation.members.find((person) => person.id !== me.id) ??
+          conversation.members[0] ??
+          me
+        }
         onOpenConversation={openConversation}
         onClose={() => {
           setShowSearch(false);
           setQuery('');
+        }}
+      />
+      <OrganizationDialog
+        dialog={organizationDialog}
+        workspaceName={workspaceName}
+        workspaceMembers={workspaceMembers}
+        teamMembers={teamMembers}
+        channelMembers={channelMembers}
+        availableMembers={availableMembers}
+        onClose={() => setOrganizationDialog(null)}
+        onCreateWorkspace={async (name) => {
+          if (!token) return;
+          const created = await createWorkspace(token, name);
+          setWorkspaces((items) => [...items, created]);
+          setWorkspaceId(created.id);
+          setOrganizationDialog(null);
+        }}
+        onCreateTeam={async (name, description) => {
+          if (!token || !workspaceId) return;
+          await createTeam(token, workspaceId, { name, description });
+          await refreshOrganization();
+          setOrganizationDialog(null);
+        }}
+        onCreateChannel={async (teamId, name, description, visibility) => {
+          if (!token) return;
+          const created = await createChannel(token, teamId, { name, description, visibility });
+          const refreshed = await refreshOrganization();
+          setOrganizationDialog(null);
+          if (created.joined) {
+            const team = refreshed?.teams.find((item) => item.id === teamId);
+            const channel = team?.channels.find((item) => item.id === created.id);
+            if (team && channel) openConversation(toChannelConversation(team, channel));
+          }
+        }}
+        onCreateInvite={async (email, role, teamId): Promise<CreatedInvite> => {
+          if (!token || !workspaceId) throw new Error('Selecione um espaço de trabalho.');
+          return createWorkspaceInvite(token, workspaceId, { email, role, teamId });
+        }}
+        onAddTeamMember={async (teamId, userId) => {
+          if (!token) return;
+          await addTeamMember(token, teamId, userId);
+          setTeamMembers(await getTeamMembers(token, teamId));
+          await refreshOrganization();
+        }}
+        onRemoveTeamMember={async (teamId, userId) => {
+          if (!token) return;
+          await removeTeamMember(token, teamId, userId);
+          setTeamMembers(await getTeamMembers(token, teamId));
+          await refreshOrganization();
+        }}
+        onRemoveWorkspaceMember={async (userId) => {
+          if (!token || !workspaceId) return;
+          await removeWorkspaceMember(token, workspaceId, userId);
+          await refreshOrganization();
+        }}
+        onUpdateWorkspaceMember={async (userId, role) => {
+          if (!token || !workspaceId) return;
+          await updateWorkspaceMemberRole(token, workspaceId, userId, role);
+          await refreshOrganization();
+        }}
+        onAddChannelMember={async (channelId, userId) => {
+          if (!token) return;
+          await addChannelMember(token, channelId, userId);
+          setChannelMembers(await getChannelMembers(token, channelId));
+          await refreshOrganization();
+        }}
+        onRemoveChannelMember={async (channelId, userId) => {
+          if (!token) return;
+          await removeChannelMember(token, channelId, userId);
+          setChannelMembers(await getChannelMembers(token, channelId));
+          await refreshOrganization();
+        }}
+        onUpdateTeam={async (teamId, name, description) => {
+          if (!token) return;
+          await updateTeam(token, teamId, { name, description });
+          await refreshOrganization();
+          setOrganizationDialog((current) =>
+            current?.mode === 'manage-team' && current.teamId === teamId
+              ? { ...current, teamName: name, description }
+              : current,
+          );
+        }}
+        onArchiveTeam={async (teamId) => {
+          if (!token) return;
+          await archiveTeam(token, teamId);
+          await refreshOrganization();
+          setOrganizationDialog(null);
+          setActiveId('');
+        }}
+        onUpdateChannel={async (channelId, name, description, visibility) => {
+          if (!token) return;
+          await updateChannel(token, channelId, { name, description, visibility });
+          await refreshOrganization();
+          setOrganizationDialog((current) =>
+            current?.mode === 'manage-channel' && current.channelId === channelId
+              ? { ...current, channelName: name, description, channelVisibility: visibility }
+              : current,
+          );
+        }}
+        onArchiveChannel={async (channelId) => {
+          if (!token) return;
+          await archiveChannel(token, channelId);
+          await refreshOrganization();
+          setOrganizationDialog(null);
+          setActiveId('');
+        }}
+        onInviteToTeam={(teamId) => {
+          const team = teams.find((item) => item.id === teamId);
+          setOrganizationDialog({ mode: 'invite', teamId, teamName: team?.name });
         }}
       />
       {toast && (
@@ -436,4 +767,21 @@ export function ChatPage() {
       )}
     </div>
   );
+}
+
+function toChannelConversation(team: RemoteTeam, channel: RemoteChannel): Conversation {
+  return {
+    id: channel.id,
+    kind: 'CHANNEL',
+    name: channel.name,
+    description: channel.description ?? undefined,
+    members: [],
+    teamId: team.id,
+    teamName: team.name,
+    visibility: channel.visibility,
+    joined: channel.joined,
+    isFavorite: channel.isFavorite,
+    isHidden: channel.isHidden,
+    memberCount: channel.memberCount,
+  };
 }

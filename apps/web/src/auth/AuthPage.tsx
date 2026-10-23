@@ -48,7 +48,10 @@ export function AuthPage({ mode }: { mode: AuthPageMode }) {
         });
       } else if (mode === 'register') {
         await auth.register(displayName, email, password);
-        navigate('/chat/produto', { replace: true });
+        const requestedPath = (location.state as { from?: string } | null)?.from;
+        navigate(requestedPath?.startsWith('/') ? requestedPath : '/chat/produto', {
+          replace: true,
+        });
       } else if (mode === 'forgot') {
         const result = await requestPasswordReset(email);
         setMessage(result.message);
@@ -168,13 +171,17 @@ export function AuthPage({ mode }: { mode: AuthPageMode }) {
             <>
               <Link to="/recuperar-senha">Esqueci minha senha</Link>
               <span>·</span>
-              <Link to="/cadastro">Criar conta</Link>
+              <Link to="/cadastro" state={location.state}>
+                Criar conta
+              </Link>
             </>
           )}
           {mode === 'register' && (
             <>
               <span>Já tem uma conta?</span>
-              <Link to="/entrar">Entrar</Link>
+              <Link to="/entrar" state={location.state}>
+                Entrar
+              </Link>
             </>
           )}
           {(mode === 'forgot' || mode === 'reset') && <Link to="/entrar">Voltar para entrar</Link>}

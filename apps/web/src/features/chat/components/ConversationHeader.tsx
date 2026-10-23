@@ -43,13 +43,16 @@ export function ConversationHeader({
         <p>{isChannel ? active.description : (getOtherPerson(active).role ?? 'Conversa direta')}</p>
       </div>
       {isChannel && (
-        <div className="header-members" title={`${active.members.length} pessoas no canal`}>
+        <div
+          className="header-members"
+          title={`${active.memberCount ?? active.members.length} pessoas no canal`}
+        >
           <div className="mini-avatars">
             {active.members.slice(0, 3).map((person) => (
               <Avatar key={person.id} person={person} size="small" />
             ))}
           </div>
-          <span>{active.members.length}</span>
+          <span>{active.memberCount ?? active.members.length}</span>
         </div>
       )}
       <div className="header-divider" />

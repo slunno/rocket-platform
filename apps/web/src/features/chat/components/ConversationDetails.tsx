@@ -42,7 +42,7 @@ export function ConversationDetails({
           <Users size={17} /> Pessoas
         </span>
         <span>
-          {active.members.length}
+          {active.memberCount ?? active.members.length}
           <ChevronRight size={15} />
         </span>
       </button>

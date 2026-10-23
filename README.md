@@ -4,33 +4,33 @@ Plataforma de comunicação corporativa da AKR Brands, em português do Brasil. 
 
 ## Estado do projeto
 
-Os **Blocos 0 — Fundação e higiene**, **1 — Design system e shell da aplicação** e **2 — Autenticação e perfil reais** estão concluídos. O próximo é o **Bloco 3 — Organização, equipes e canais**. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para o plano completo, critérios de aceite, status e pendências.
+Os **Blocos 0 — Fundação e higiene**, **1 — Design system e shell da aplicação** e **2 — Autenticação e perfil reais** estão concluídos. O **Bloco 3 — Organização, equipes e canais** está em validação. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para o plano completo, critérios de aceite, status e pendências.
 
 ## Status dos blocos
 
-| Bloco                                        | Status       |
-| -------------------------------------------- | ------------ |
-| 0 — Fundação e higiene                       | ✅ Concluído |
-| 1 — Design system e shell                    | ✅ Concluído |
-| 2 — Autenticação e perfil reais              | ✅ Concluído |
-| 3 — Organização, equipes e canais            | ⏳ Pendente  |
-| 4 — Mensageria completa                      | ⏳ Pendente  |
-| 5 — Chats 1:1 e em grupo                     | ⏳ Pendente  |
-| 6 — Arquivos e anexos                        | ⏳ Pendente  |
-| 7 — Presença, atividade e notificações       | ⏳ Pendente  |
-| 8 — Busca                                    | ⏳ Pendente  |
-| 9 — Calendário e reuniões                    | ⏳ Pendente  |
-| 10 — Abas de canal e produtividade           | ⏳ Pendente  |
-| 11 — Administração, segurança e conformidade | ⏳ Pendente  |
-| 12 — Qualidade, observabilidade e entrega    | ⏳ Pendente  |
+| Bloco                                        | Status          |
+| -------------------------------------------- | --------------- |
+| 0 — Fundação e higiene                       | ✅ Concluído    |
+| 1 — Design system e shell                    | ✅ Concluído    |
+| 2 — Autenticação e perfil reais              | ✅ Concluído    |
+| 3 — Organização, equipes e canais            | 🚧 Em andamento |
+| 4 — Mensageria completa                      | ⏳ Pendente     |
+| 5 — Chats 1:1 e em grupo                     | ⏳ Pendente     |
+| 6 — Arquivos e anexos                        | ⏳ Pendente     |
+| 7 — Presença, atividade e notificações       | ⏳ Pendente     |
+| 8 — Busca                                    | ⏳ Pendente     |
+| 9 — Calendário e reuniões                    | ⏳ Pendente     |
+| 10 — Abas de canal e produtividade           | ⏳ Pendente     |
+| 11 — Administração, segurança e conformidade | ⏳ Pendente     |
+| 12 — Qualidade, observabilidade e entrega    | ⏳ Pendente     |
 
 ## O que existe hoje
 
 - Interface React com shell responsivo, rotas, temas claro/escuro/alto contraste, tokens monocromáticos, busca rápida (`Ctrl/Cmd + K`), conversas, painel de detalhes, reações de demonstração e modo local com dados fictícios.
 - Componentes separados por layout, conversa e elementos básicos de interface; tema e largura da barra lateral persistidos no navegador.
 - Rotas com conteúdo de demonstração para Atividade, Calendário, Arquivos e Chamadas; os respectivos fluxos completos permanecem nos blocos futuros do roadmap.
-- API Express com cadastro e login por e-mail, senhas Argon2id, sessões persistentes com refresh rotativo, logout local/global, recuperação de senha, perfil e status manual; demonstração restrita à configuração de desenvolvimento. Também oferece conversas, mensagens e eventos Socket.IO.
-- Modelo Prisma para usuários, espaços de trabalho, conversas, mensagens, anexos e reações, com migração inicial versionada.
+- API Express com cadastro e login por e-mail, senhas Argon2id, sessões persistentes com refresh rotativo, logout local/global, recuperação de senha, perfil e status manual; demonstração restrita à configuração de desenvolvimento. Também oferece espaços, equipes, canais públicos/privados, papéis, membros, convites por e-mail, mensagens autorizadas e eventos Socket.IO.
+- Modelo Prisma para usuários, espaços, equipes, canais, conversas diretas/em grupo, mensagens, anexos, reações, membros e convites; migrações versionadas preservam as mensagens dos canais existentes.
 - Dados de demonstração fictícios em contexto de moda e indústria: Comercial, Produto e Estilo, Produção, Marketing, Logística e TI.
 - Pacote `@rocket/shared` com schemas Zod, tipos inferidos e nomes de eventos Socket.IO.
 - Verificação de variáveis de ambiente da API no boot, com mensagens de erro em português.
@@ -45,7 +45,7 @@ apps/
     prisma/               Schema, migrações versionadas e seed
 packages/
   shared/                 Schemas Zod, tipos e eventos compartilhados
-docs/                     Roadmap e decisões técnicas
+docs/                     Roadmap, decisões, API e permissões
 .github/workflows/        CI para pull requests e pushes na main
 docker-compose.yml        PostgreSQL 17 e Redis 7 para desenvolvimento
 ```
@@ -114,7 +114,7 @@ Para formatar os arquivos suportados, use `npm run format`. O fluxo do GitHub Ac
 | `VITE_BRAND_LOGO_URL`    | URL opcional para a imagem da marca na barra superior                           |
 | `VITE_DEMO_AUTH_ENABLED` | Exibe o atalho para demonstração somente no Vite de desenvolvimento             |
 
-A API falha cedo com a lista das variáveis inválidas. A rota de sessão demo retorna 404 em produção, e a configuração rejeita autenticação demo habilitada quando `NODE_ENV=production`. Produção exige `MAIL_PROVIDER=smtp` e as credenciais SMTP completas.
+A API falha cedo com a lista das variáveis inválidas. A rota de sessão demo retorna 404 em produção, e a configuração rejeita autenticação demo habilitada quando `NODE_ENV=production`. Produção exige `MAIL_PROVIDER=smtp` e as credenciais SMTP completas. O SMTP entrega recuperação de senha e convites; em desenvolvimento, os links são registrados no log da API e também podem ser copiados na interface.
 
 ## Identidade visual
 
@@ -122,4 +122,4 @@ A interface usa uma paleta monocromática concentrada em `apps/web/src/styles/to
 
 ## Próximas etapas
 
-Gestão de equipes e canais, mensageria completa, anexos, presença, busca, calendário, reuniões e recursos de administração seguem planejados em [`docs/ROADMAP.md`](docs/ROADMAP.md) e ainda não devem ser considerados disponíveis.
+Mensageria completa, anexos, presença, atividade, notificações, busca, calendário, reuniões, produtividade e recursos de administração seguem planejados em [`docs/ROADMAP.md`](docs/ROADMAP.md) e ainda não devem ser considerados disponíveis. Os papéis e as regras de acesso atuais estão em [`docs/PERMISSOES.md`](docs/PERMISSOES.md); os endpoints estão em [`docs/API.md`](docs/API.md).

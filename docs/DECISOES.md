@@ -43,3 +43,27 @@ Registros curtos de contexto, decisão e consequência.
 - **Contexto:** a demonstração precisava evoluir para contas reais, sessões persistentes e recuperação sem expor credenciais ou tokens reutilizáveis.
 - **Decisão:** usar hashes Argon2id para senhas, access tokens HS256 de 15 minutos e refresh tokens opacos com rotação, hash SHA-256 no banco, família de sessão e revogação em caso de replay; cookies `HttpOnly`/`SameSite=Lax`; tokens de recuperação de uso único com expiração de 20 minutos; `MailProvider` com log em desenvolvimento e SMTP em produção.
 - **Consequência:** refresh e recuperação podem ser revogados no servidor, sockets são desconectados ao revogar sessões e produção precisa de segredo exclusivo e SMTP configurado. Tentativas de login usam chaves HMAC e bloqueio progressivo persistidos no PostgreSQL.
+
+## 2026-10-23 — Separação de equipes, canais e conversas
+
+- **Contexto:** o modelo antigo representava canais como `Conversation`, misturando publicações em equipe com chats diretos e em grupo.
+- **Decisão:** criar `Team`, `Channel` e associações próprias; `Conversation` passa a conter apenas `DIRECT` e `GROUP`. Mensagens apontam para exatamente um chat ou canal.
+- **Consequência:** a migração conserva os IDs dos canais antigos, converte mensagens e membros, e cria equipe/canal Geral para os espaços existentes. Um espaço legado criado sem workspace recebe como proprietário a primeira pessoa associada a um canal migrado.
+
+## 2026-10-23 — Escopo de papéis e canais privados
+
+- **Contexto:** o Bloco 3 precisa separar gestão da organização da participação no conteúdo privado.
+- **Decisão:** proprietário e administrador gerenciam equipes, canais, membros e convites; somente proprietário pode conceder papel de administrador. Convidados ficam limitados às equipes vinculadas a convites ou adicionadas por um administrador. Administradores veem metadados necessários para gerenciar um canal privado, mas não recebem acesso às mensagens automaticamente.
+- **Consequência:** a API e os sockets verificam associação no servidor; a interface usa as mesmas respostas para montar a navegação. Ao promover uma pessoa já existente para convidado, a API remove as associações atuais de equipes e canais e exige concessão explícita das equipes permitidas. As regras completas estão em `docs/PERMISSOES.md`.
+
+## 2026-10-23 — Convites e entrega de e-mail
+
+- **Contexto:** convites precisam funcionar com e-mail no desenvolvimento e em produção sem armazenar tokens reutilizáveis.
+- **Decisão:** reutilizar `MailProvider`, com log local e SMTP configurável, guardar somente SHA-256 do token, expirar em sete dias e exigir correspondência de e-mail no aceite. A interface mostra o link para compartilhamento manual.
+- **Consequência:** erro de envio cancela o convite recém-criado e retorna erro recuperável; o aceite é autenticado e de uso único.
+
+## 2026-10-23 — Validação PostgreSQL do Bloco 3
+
+- **Contexto:** o host local não tem Docker nem `psql`, então não pode aplicar migrações ou executar os testes de integração de banco.
+- **Decisão:** manter os testes de autorização integrados sob `AUTH_INTEGRATION_TESTS=true`, para rodarem no workflow existente sobre PostgreSQL 17.
+- **Consequência:** a validação local cobre tipagem, lint, testes sem banco e build; a conclusão do bloco depende do CI aplicar migrações e passar testes e seed.
