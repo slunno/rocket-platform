@@ -19,19 +19,17 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
   const userEmails = [ownerEmail, memberEmail, guestEmail];
 
   beforeAll(async () => {
-    const [{ authRouter }, organization, client] = await Promise.all([
-      import('../auth/routes.js'),
-      import('./routes.js'),
+    const [{ createApiRouter }, client] = await Promise.all([
+      import('../routes.js'),
       import('../lib/prisma.js'),
     ]);
     prisma = client.prisma;
     const app = express();
     app.use(express.json());
-    app.use('/auth', authRouter);
     const socketServer = {
       in: () => ({ socketsJoin: async () => undefined, socketsLeave: async () => undefined }),
     } as unknown as SocketServer;
-    app.use('/', organization.createOrganizationRouter(socketServer));
+    app.use('/', createApiRouter(socketServer));
     server = createServer(app);
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
