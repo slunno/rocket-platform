@@ -36,7 +36,7 @@ Todas as rotas abaixo usam o prefixo `/api`. Rotas de organização exigem `Auth
 | `POST /channels/:channelId/members`           | Adiciona pessoa do espaço a canal privado.                                                 | Proprietário ou administrador                     |
 | `GET /channels/:channelId/members`            | Lista participantes ou, para canal público, participantes da equipe.                       | Participante; gestor pode consultar canal privado |
 | `DELETE /channels/:channelId/members/:userId` | Retira participante de canal privado; pessoa pode sair do próprio canal.                   | Proprietário/administrador ou a própria pessoa    |
-| `PATCH /channels/:channelId/preference`       | Atualiza `favorite` e/ou `hidden` da própria pessoa.                                       | Participante do canal                             |
+| `PATCH /channels/:channelId/preference`       | Atualiza `favorite`, `hidden` e/ou `notificationLevel` (`ALL`, `MENTIONS`, `MUTED`).       | Participante do canal                             |
 | `GET /channels/:channelId/messages`           | Lista uma página de mensagens; aceita `limit` e `cursor` para buscar o histórico anterior. | Participante autorizado                           |
 | `POST /channels/:channelId/read`              | Atualiza o marcador pessoal de leitura do canal e emite `read:updated`.                    | Participante autorizado                           |
 | `POST /channels/:channelId/messages`          | Publica mensagem com `clientMessageId` idempotente e emite `message:created` no canal.     | Participante autorizado                           |
@@ -59,7 +59,7 @@ Todas as rotas abaixo usam o prefixo `/api`. Rotas de organização exigem `Auth
 | `POST /workspaces/:workspaceId/conversations/direct`    | Abre uma DM idempotente por par de pessoas; exige que ambas pertençam ao espaço.           | Membro não convidado do espaço                  |
 | `POST /workspaces/:workspaceId/conversations`           | Cria grupo com nome, foto HTTPS opcional e até 50 participantes, incluindo a criadora.     | Membro não convidado e demais pessoas do espaço |
 | `PATCH /conversations/:conversationId`                  | Atualiza nome, descrição e foto HTTPS do grupo.                                            | Criador do grupo                                |
-| `PATCH /conversations/:conversationId/preference`       | Atualiza `muted` e/ou `pinned` da própria pessoa.                                          | Participante do chat                            |
+| `PATCH /conversations/:conversationId/preference`       | Atualiza `muted`, `pinned` e/ou `notificationLevel` (`ALL`, `MENTIONS`, `MUTED`).          | Participante do chat                            |
 | `POST /conversations/:conversationId/members`           | Adiciona pessoa do mesmo espaço ao grupo; repetição é idempotente.                         | Criador do grupo                                |
 | `DELETE /conversations/:conversationId/members/:userId` | Remove participante ou permite que a própria pessoa saia; transfere autoria se necessário. | Criador do grupo ou a própria pessoa            |
 | `GET /conversations/:conversationId/messages`           | Lista uma página de mensagens com cursor.                                                  | Participante do chat                            |
@@ -101,3 +101,16 @@ Tópicos têm um nível: respostas não podem receber outras respostas. As respo
 O cliente envia `typing` com `{ "targetType": "CHANNEL" | "CONVERSATION", "targetId": "...", "isTyping": true | false }`. A API só encaminha o evento para a sala que o socket já está autorizado a acessar; o servidor obtém o nome da pessoa autenticada e o envia aos outros participantes.
 
 Ao abrir uma conversa ou canal visível, o cliente chama a rota `/read` correspondente. A API grava o marcador por pessoa e envia `read:updated` à sala pessoal do usuário, sincronizando as demais sessões. Ao reconectar, o cliente busca novamente a página recente e os resumos de não lidas.
+
+## Atividade e notificações
+
+| Método e rota                         | Ação                                                                            | Acesso                    |
+| ------------------------------------- | ------------------------------------------------------------------------------- | ------------------------- |
+| `GET /activity`                       | Lista atividade; `filter` aceita `all`, `unread` ou `mentions`; cursor estável. | Pessoa autenticada        |
+| `POST /activity/:id/read`             | Marca uma atividade própria e ainda visível como lida.                          | Destinatário da atividade |
+| `POST /activity/read-all`             | Marca como lida a atividade visível não lida da pessoa.                         | Pessoa autenticada        |
+| `GET /activity/push-config`           | Informa se Web Push está configurado e retorna somente a chave pública VAPID.   | Pessoa autenticada        |
+| `POST /activity/push-subscriptions`   | Registra ou substitui a assinatura Web Push deste navegador.                    | Pessoa autenticada        |
+| `DELETE /activity/push-subscriptions` | Remove a assinatura Web Push deste navegador.                                   | Dono da assinatura        |
+
+O feed inclui menções, respostas em tópicos, reações a mensagens próprias e aceite de convites. A resposta contém `items`, `nextCursor` e `unreadCount`; atividades vinculadas a chats, canais ou espaços só aparecem enquanto a pessoa ainda tem acesso ao destino. A API não inclui o texto da mensagem no evento de notificação. Preferências `ALL`, `MENTIONS` e `MUTED` são individuais por conversa/canal; `DO_NOT_DISTURB` mantém as atividades persistidas, mas suprime entregas em tempo real e push. A fila BullMQ `rocket-activity-notifications` entrega `notification:created` para a sala pessoal e Web Push para assinaturas ativas quando VAPID está configurado.

@@ -13,7 +13,7 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 | 4 — Mensageria completa                      | 🚧 Em andamento | Cursor, idempotência, edição, exclusão, threads, reações, menções, marcadores de leitura, contadores de não lidas e ressincronização; validação multiusuário pendente. |
 | 5 — Chats 1:1 e em grupo                     | 🚧 Em andamento | Busca de pessoas, DMs idempotentes, grupos com foto HTTPS, participantes, silenciar e fixar; sem duplicação de conversas.                                              |
 | 6 — Arquivos e anexos                        | ✅ Concluído    | MinIO e StorageProvider com upload, preview e download autorizados, respeitando limites e tipos permitidos; testes integrados e CI completos passaram.                 |
-| 7 — Presença, Atividade e Notificações       | 🚧 Em andamento | Adapter Redis e presença por heartbeat/TTL validados no CI; feed, notificações e preferências seguem pendentes.                                                        |
+| 7 — Presença, Atividade e Notificações       | 🚧 Em andamento | Adapter e presença validados no CI; feed, filtros, preferências, notificações no navegador e entrega BullMQ implementados no checkout, aguardando CI.                  |
 | 8 — Busca                                    | ⏳ Pendente     | Busca PostgreSQL por mensagens, pessoas, canais e arquivos; resultados obedecem permissões.                                                                            |
 | 9 — Calendário e Reuniões                    | ⏳ Pendente     | Calendário, eventos e reuniões LiveKit com autorização, áudio/vídeo e compartilhamento entre participantes.                                                            |
 | 10 — Abas de canal e produtividade           | ⏳ Pendente     | Abas configuráveis de publicações, arquivos, notas e tarefas, com itens salvos/pinados persistidos.                                                                    |
@@ -168,11 +168,18 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 
 ### 2026-10-23 — Bloco 7 em andamento
 
-- **Status:** 🚧 presença distribuída em implementação; feed de atividade, notificações e preferências ainda pendentes.
-- **Entregue no checkout:** adapter Redis para Socket.IO; heartbeat autenticado a cada 20 segundos com TTL de 60 segundos, controle de múltiplos sockets por usuário, transições online/offline e snapshot inicial limitado a conversas, canais privados e equipes com canais públicos autorizados.
-- **Validação local:** lint, format check, typecheck, build, 49 testes e `npm audit --audit-level=moderate` passaram. Cinco testes de integração foram ignorados sem PostgreSQL/Redis local. A leitura visual da aba `127.0.0.1:5181` foi bloqueada pela política do navegador integrado.
-- **CI #38:** passou por lint, formatação, typecheck, migração PostgreSQL, testes de integração com Redis, build, seed e smoke test.
-- **Próxima etapa:** implementar feed de atividade, notificações e preferências, usando BullMQ sobre Redis para entregas assíncronas.
+- **Status:** 🚧 presença, feed e notificações implementados e publicados em `main`; o CI #44 validou migração e integração. Resta a conferência visual manual, bloqueada pela política de segurança do navegador integrado ao tentar abrir a URL local.
+- **Entregue e validado anteriormente:** adapter Redis para Socket.IO; heartbeat autenticado a cada 20 segundos com TTL de 60 segundos, controle de múltiplos sockets por usuário, transições online/offline e snapshot inicial limitado a conversas, canais privados e equipes com canais públicos autorizados.
+- **Implementado neste avanço:** notificações persistidas de menção, resposta, reação e aceite de convite; filtros e cursores do feed; leitura individual e em lote; contadores não lidos; preferências `ALL`, `MENTIONS` e `MUTED` por conversa/canal; Não incomodar suprime entrega em tempo real; worker BullMQ entrega por Socket.IO; alertas no app e notificações do navegador com permissão explícita.
+- **Validação local:** `npm run build`, `npm run typecheck`, `npm run lint`, `npm run format:check`, `git diff --check` e `npm audit --audit-level=moderate` passaram; auditoria encontrou zero vulnerabilidades. `npm run test`: 55 passaram e 6 foram ignorados. A integração local é ignorada sem PostgreSQL/Redis; ela passou no CI #44.
+- **CI #38:** validou a etapa anterior de presença por lint, formatação, typecheck, migração PostgreSQL, testes de integração com Redis, build, seed e smoke test.
+- **CI #40–41:** lint, formatação, typecheck e migração passaram; o teste de conversa esperava somente `muted` e `pinned`, sem o novo campo. Em `baebda3`, a asserção passou a conferir também o nível, inicialmente com o valor incorreto `ALL`.
+- **CI #42:** confirmou que `muted: true` retorna `notificationLevel: MUTED`; o valor esperado foi corrigido em `219c18f`.
+- **CI #43:** encontrou também uma asserção antiga para preferência de canal, que não esperava `notificationLevel: ALL`; ajustada em `87e1e5c`.
+- **CI #44:** [passou](https://github.com/slunno/rocket-platform/actions/runs/40012567476), incluindo lint, formatação, typecheck, migração PostgreSQL, testes de integração com Redis e notificações, build, seed e smoke test.
+- **Pendência visual:** a política de segurança do navegador integrado bloqueou `http://127.0.0.1:5181/chat/produto`; sem contornar esse bloqueio, a revisão manual de UI permanece pendente.
+- **Desvio de ordem:** começar o Bloco 8 com apenas essa conferência manual do Bloco 7 pendente; a busca não depende dela e o bloqueio do navegador também mantém a validação visual dos Blocos 4 e 5 em aberto.
+- **Próxima etapa:** iniciar o Bloco 8 — Busca, com índice full-text PostgreSQL, filtros e resultados agrupados sem expor canais privados.
 
 ### 2026-10-22 — Bloco 0 concluído
 

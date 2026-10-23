@@ -1,5 +1,11 @@
 # Decisões técnicas
 
+## 2026-10-23 — Feed de atividade e notificações
+
+- **Contexto:** menções, respostas, reações e aceite de convites precisam ficar disponíveis entre sessões e não podem revelar conteúdo de canais ou conversas após a perda de acesso.
+- **Decisão:** persistir registros de atividade com destinatário, autor, tipo e destino, sem copiar o texto da mensagem; revalidar associação no feed; usar níveis individuais `ALL`, `MENTIONS` e `MUTED`; entregar eventos em tempo real por BullMQ/Redis e suprimir entregas quando o destinatário estiver em Não incomodar. A permissão de notificações do navegador é opt-in; quando VAPID está configurado, registrar assinatura Web Push ligada à conta.
+- **Consequência:** o feed continua consultável quando a entrega em tempo real falha; o cliente recebe apenas metadados necessários para navegar. Service worker mostra notificações push mesmo com a aba fechada; sem VAPID, o navegador recebe notificações enquanto o Rocket está aberto. Assinaturas aceitam somente endpoints HTTPS de serviços conhecidos para evitar SSRF.
+
 ## 2026-10-23 — Presença distribuída
 
 - **Contexto:** sockets podem estar distribuídos entre instâncias da API, e o estado online não deve revelar membros fora das conversas ou canais acessíveis.
