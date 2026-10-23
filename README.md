@@ -4,7 +4,7 @@ Plataforma de comunicação corporativa da AKR Brands, em português do Brasil. 
 
 ## Estado do projeto
 
-Os **Blocos 0 — Fundação e higiene**, **1 — Design system e shell da aplicação**, **2 — Autenticação e perfil reais** e **3 — Organização, equipes e canais** estão concluídos. O **Bloco 4 — Mensageria completa** segue em andamento porque falta conferir a interface entre duas sessões. A implementação do **Bloco 5 — Chats 1:1 e em grupo** está pronta e os CIs #25 e #26 passaram com PostgreSQL, testes, build, seed e smoke test; falta conferir os fluxos entre duas contas pelo navegador integrado. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para os critérios de aceite, status e pendências.
+Os **Blocos 0 a 3** estão concluídos. Os **Blocos 4 e 5** têm implementação e CI concluídos, mas ainda aguardam conferência visual entre duas contas pelo navegador integrado. O **Bloco 6 — Arquivos e anexos** está em andamento: upload e navegação de arquivos foram implementados e o build local passou; CI, publicação e aceite ainda estão pendentes. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para critérios, status e pendências.
 
 ## Status dos blocos
 
@@ -16,7 +16,7 @@ Os **Blocos 0 — Fundação e higiene**, **1 — Design system e shell da aplic
 | 3 — Organização, equipes e canais            | ✅ Concluído    |
 | 4 — Mensageria completa                      | 🚧 Em andamento |
 | 5 — Chats 1:1 e em grupo                     | 🚧 Em andamento |
-| 6 — Arquivos e anexos                        | ⏳ Pendente     |
+| 6 — Arquivos e anexos                        | 🚧 Em andamento |
 | 7 — Presença, atividade e notificações       | ⏳ Pendente     |
 | 8 — Busca                                    | ⏳ Pendente     |
 | 9 — Calendário e reuniões                    | ⏳ Pendente     |
@@ -28,8 +28,8 @@ Os **Blocos 0 — Fundação e higiene**, **1 — Design system e shell da aplic
 
 - Interface React com shell responsivo, rotas, temas claro/escuro/alto contraste, tokens monocromáticos, busca rápida (`Ctrl/Cmd + K`), conversas, painel de detalhes, reações de demonstração e modo local com dados fictícios.
 - Componentes separados por layout, conversa e elementos básicos de interface; tema e largura da barra lateral persistidos no navegador.
-- Rotas com conteúdo de demonstração para Atividade, Calendário, Arquivos e Chamadas; os respectivos fluxos completos permanecem nos blocos futuros do roadmap.
-- API Express com cadastro e login por e-mail, senhas Argon2id, sessões persistentes com refresh rotativo, logout local/global, recuperação de senha, perfil e status manual; demonstração restrita à configuração de desenvolvimento. Também oferece espaços, equipes, canais públicos/privados, papéis, membros e convites por e-mail. Mensagens têm cursor, envio idempotente, edição, exclusão, reações, tópicos, menções restritas aos participantes, indicador de digitação e marcadores de leitura sincronizados por Socket.IO. O Bloco 5 oferece DMs sem duplicação, grupos com foto HTTPS, gestão de participantes e preferências de silenciar/fixar; os fluxos com duas contas aguardam conferência visual.
+- Rotas com demonstração para Atividade, Calendário e Chamadas. Arquivos têm upload para MinIO/S3, prévias, download autorizado, busca e ordenação, incluindo arquivos de canal.
+- API Express com cadastro e login por e-mail, senhas Argon2id, sessões persistentes com refresh rotativo, logout local/global, recuperação de senha, perfil e status manual; demonstração restrita à configuração de desenvolvimento. Também oferece espaços, equipes, canais públicos/privados, papéis, membros e convites por e-mail. Mensagens têm cursor, envio idempotente, edição, exclusão, reações, tópicos, menções restritas aos participantes, indicador de digitação e marcadores de leitura sincronizados por Socket.IO. DMs são únicas por par; grupos oferecem foto HTTPS, gestão de participantes e preferências de silenciar/fixar. Anexos têm limite de 25 MiB e são verificados por conteúdo antes de ficarem disponíveis.
 - Modelo Prisma para usuários, espaços, equipes, canais, conversas diretas/em grupo, mensagens, anexos, reações, membros e convites; migrações versionadas preservam as mensagens dos canais existentes.
 - Dados de demonstração fictícios em contexto de moda e indústria: Comercial, Produto e Estilo, Produção, Marketing, Logística e TI.
 - Pacote `@rocket/shared` com schemas Zod, tipos inferidos e nomes de eventos Socket.IO.
@@ -93,26 +93,33 @@ Para formatar os arquivos suportados, use `npm run format`. O fluxo do GitHub Ac
 
 ## Variáveis de ambiente
 
-| Variável                 | Uso                                                                             |
-| ------------------------ | ------------------------------------------------------------------------------- |
-| `POSTGRES_PASSWORD`      | Senha local do container PostgreSQL                                             |
-| `DATABASE_URL`           | Conexão PostgreSQL usada pela API, Prisma e seed                                |
-| `JWT_SECRET`             | Segredo dos tokens de acesso e das chaves de limitação; mínimo de 32 caracteres |
-| `DEMO_AUTH_ENABLED`      | Habilita a sessão demo fora de produção                                         |
-| `MAIL_PROVIDER`          | `log` em desenvolvimento ou `smtp` para envio real                              |
-| `MAIL_FROM`              | Remetente dos e-mails de recuperação de senha                                   |
-| `SMTP_HOST`              | Host do servidor SMTP                                                           |
-| `SMTP_PORT`              | Porta SMTP; padrão `587`                                                        |
-| `SMTP_SECURE`            | Use `true` para TLS implícito, como na porta `465`                              |
-| `SMTP_USER`              | Usuário SMTP                                                                    |
-| `SMTP_PASSWORD`          | Senha SMTP                                                                      |
-| `NODE_ENV`               | `development`, `test` ou `production`; padrão `development`                     |
-| `API_PORT`               | Porta da API; padrão `4000`                                                     |
-| `WEB_ORIGIN`             | Origem CORS permitida; padrão `http://localhost:5173`                           |
-| `VITE_API_URL`           | URL da API consumida pelo Vite; padrão `http://localhost:4000`                  |
-| `VITE_BRAND_NAME`        | Nome exibido na barra superior; padrão `Rocket`                                 |
-| `VITE_BRAND_LOGO_URL`    | URL opcional para a imagem da marca na barra superior                           |
-| `VITE_DEMO_AUTH_ENABLED` | Exibe o atalho para demonstração somente no Vite de desenvolvimento             |
+| Variável                      | Uso                                                                             |
+| ----------------------------- | ------------------------------------------------------------------------------- |
+| `POSTGRES_PASSWORD`           | Senha local do container PostgreSQL                                             |
+| `DATABASE_URL`                | Conexão PostgreSQL usada pela API, Prisma e seed                                |
+| `JWT_SECRET`                  | Segredo dos tokens de acesso e das chaves de limitação; mínimo de 32 caracteres |
+| `DEMO_AUTH_ENABLED`           | Habilita a sessão demo fora de produção                                         |
+| `MAIL_PROVIDER`               | `log` em desenvolvimento ou `smtp` para envio real                              |
+| `MAIL_FROM`                   | Remetente dos e-mails de recuperação de senha                                   |
+| `SMTP_HOST`                   | Host do servidor SMTP                                                           |
+| `SMTP_PORT`                   | Porta SMTP; padrão `587`                                                        |
+| `SMTP_SECURE`                 | Use `true` para TLS implícito, como na porta `465`                              |
+| `SMTP_USER`                   | Usuário SMTP                                                                    |
+| `SMTP_PASSWORD`               | Senha SMTP                                                                      |
+| `STORAGE_ENDPOINT`            | Endpoint S3 compatível; padrão local `http://localhost:9000`                    |
+| `STORAGE_REGION`              | Região usada pelo cliente S3; padrão `us-east-1`                                |
+| `STORAGE_BUCKET`              | Bucket para anexos; padrão `rocket-attachments`                                 |
+| `STORAGE_ACCESS_KEY`          | Chave de acesso ao serviço S3/MinIO                                             |
+| `STORAGE_SECRET_KEY`          | Segredo de acesso ao serviço S3/MinIO                                           |
+| `STORAGE_FORCE_PATH_STYLE`    | Usa URLs path-style, necessário para MinIO local                                |
+| `STORAGE_MAX_FILE_SIZE_BYTES` | Limite configurável de tamanho; máximo aceito pela aplicação: 25 MiB            |
+| `NODE_ENV`                    | `development`, `test` ou `production`; padrão `development`                     |
+| `API_PORT`                    | Porta da API; padrão `4000`                                                     |
+| `WEB_ORIGIN`                  | Origem CORS permitida; padrão `http://localhost:5173`                           |
+| `VITE_API_URL`                | URL da API consumida pelo Vite; padrão `http://localhost:4000`                  |
+| `VITE_BRAND_NAME`             | Nome exibido na barra superior; padrão `Rocket`                                 |
+| `VITE_BRAND_LOGO_URL`         | URL opcional para a imagem da marca na barra superior                           |
+| `VITE_DEMO_AUTH_ENABLED`      | Exibe o atalho para demonstração somente no Vite de desenvolvimento             |
 
 A API falha cedo com a lista das variáveis inválidas. A rota de sessão demo retorna 404 em produção, e a configuração rejeita autenticação demo habilitada quando `NODE_ENV=production`. Produção exige `MAIL_PROVIDER=smtp` e as credenciais SMTP completas. O SMTP entrega recuperação de senha e convites; em desenvolvimento, os links são registrados no log da API e também podem ser copiados na interface.
 
@@ -122,4 +129,4 @@ A interface usa uma paleta monocromática concentrada em `apps/web/src/styles/to
 
 ## Próximas etapas
 
-Conferência entre duas contas na mensageria e no novo chat, anexos, presença, atividade, notificações, busca, calendário, reuniões, produtividade e recursos de administração seguem pendentes em [`docs/ROADMAP.md`](docs/ROADMAP.md). Os CIs #25 e #26 já validaram os chats com PostgreSQL. Os papéis e as regras de acesso atuais estão em [`docs/PERMISSOES.md`](docs/PERMISSOES.md); os endpoints estão em [`docs/API.md`](docs/API.md).
+O Bloco 6 de anexos aguarda CI e publicação; presença, atividade, notificações, busca, calendário, reuniões, produtividade e administração seguem nos próximos blocos de [`docs/ROADMAP.md`](docs/ROADMAP.md). Os CIs #25 e #26 validaram chats com PostgreSQL. Papéis e regras de acesso estão em [`docs/PERMISSOES.md`](docs/PERMISSOES.md); os endpoints estão em [`docs/API.md`](docs/API.md).

@@ -97,3 +97,9 @@ Registros curtos de contexto, decisão e consequência.
 - **Contexto:** duas pessoas não podem criar DMs paralelas; grupos precisam manter seus participantes, foto e preferências sem confundir chats entre usuários.
 - **Decisão:** usar uma chave única de IDs ordenados para DMs, consolidar DMs legadas duplicadas na migração e armazenar silenciar/fixar na associação individual. Grupos permitem até 50 pessoas, foto opcional por URL HTTPS e gerenciamento pelo criador; ao sair, o criador passa para a pessoa restante mais antiga.
 - **Consequência:** mensagens legadas são preservadas durante a consolidação; para as mensagens que vierem de uma DM duplicada, a chave antiga `clientMessageId` é removida para evitar conflito ao mesclar, mas seu conteúdo e IDs permanecem. Alterações de grupo emitem `conversation:updated` para os clientes participantes.
+
+## 2026-10-23 — Uploads e acesso a anexos
+
+- **Contexto:** mensagens precisam anexar arquivos sem enviar bytes pela API e sem permitir que URLs públicas revelem conteúdo de canais privados.
+- **Decisão:** usar armazenamento S3 compatível com MinIO, upload direto por formulário pré-assinado e bucket privado. Limitar cada arquivo a 25 MiB e cada mensagem a 10 anexos; aceitar somente tipos documentados, sanitizar nomes e verificar tamanho, MIME e assinatura do conteúdo ao concluir o upload. Downloads são URLs assinadas por cinco minutos, emitidas somente após autorização no chat/canal. A API nunca retorna `storageKey`.
+- **Consequência:** arquivos incompletos ou inválidos não aparecem nas listagens e não podem ser baixados. A interface global e a aba de arquivos do canal só listam anexos de conversas/canais acessíveis. Respostas de tópicos não aceitam anexos nesta etapa; o compose de respostas não oferece esse fluxo.

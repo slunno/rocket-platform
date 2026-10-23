@@ -12,7 +12,7 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 | 3 — Organização, equipes e canais            | ✅ Concluído    | Workspace → equipes → canais, convites, papéis e permissões de servidor validados com migração, testes integrados e smoke test no CI.                                  |
 | 4 — Mensageria completa                      | 🚧 Em andamento | Cursor, idempotência, edição, exclusão, threads, reações, menções, marcadores de leitura, contadores de não lidas e ressincronização; validação multiusuário pendente. |
 | 5 — Chats 1:1 e em grupo                     | 🚧 Em andamento | Busca de pessoas, DMs idempotentes, grupos com foto HTTPS, participantes, silenciar e fixar; sem duplicação de conversas.                                              |
-| 6 — Arquivos e anexos                        | ⏳ Pendente     | MinIO e StorageProvider com upload, preview e download autorizados, respeitando limites e tipos permitidos.                                                            |
+| 6 — Arquivos e anexos                        | 🚧 Em andamento | MinIO e StorageProvider com upload, preview e download autorizados, respeitando limites e tipos permitidos; implementação local pronta, aguardando CI e publicação.    |
 | 7 — Presença, Atividade e Notificações       | ⏳ Pendente     | Presença via Redis, feed, notificações e preferências consistentes entre instâncias.                                                                                   |
 | 8 — Busca                                    | ⏳ Pendente     | Busca PostgreSQL por mensagens, pessoas, canais e arquivos; resultados obedecem permissões.                                                                            |
 | 9 — Calendário e Reuniões                    | ⏳ Pendente     | Calendário, eventos e reuniões LiveKit com autorização, áudio/vídeo e compartilhamento entre participantes.                                                            |
@@ -148,6 +148,15 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 - **Validação pendente:** exercitar a interface completa com duas contas pelo navegador integrado quando houver ambiente web/API conectado. O workspace não possui PostgreSQL local nem projeto Vercel conectado; nenhuma automação de computador foi usada.
 - **Desvio de ordem:** o Bloco 5 começou antes da conferência visual final do Bloco 4. A API do Bloco 4 já passou pelo CI #22; a falta de ambiente para duas sessões mantém sua verificação visual pendente enquanto o trabalho da lista de chats prossegue.
 - **Próxima etapa:** conferir criação de DM, criação de grupo, preferências e saída com duas contas pelo navegador integrado; depois fechar o Bloco 5 e retornar à conferência multiusuário do Bloco 4.
+
+### 2026-10-23 — Bloco 6 em andamento
+
+- **Status:** 🚧 implementação local pronta; build, lint, typecheck, testes e CI ainda precisam ser fechados antes de publicar.
+- **Entregue no checkout:** armazenamento S3 compatível com MinIO e configuração local/CI; upload direto com formulário pré-assinado, limite de 25 MiB por arquivo, até 10 anexos por mensagem, lista de tipos permitidos, nome sanitizado e verificação do conteúdo real antes da conclusão. Anexos são autorizados pela conversa/canal, `storageKey` não sai da API, downloads usam URL curta assinada e arquivos só aparecem depois de verificados. A interface aceita botão, arrastar, colar e progresso; mostra prévias/cartões e oferece busca/ordenação global e aba de arquivos do canal.
+- **Validação já observada nesta execução:** build de produção local passou; ainda faltam rodar novamente lint, typecheck, testes, auditoria e fechar o CI com PostgreSQL/MinIO.
+- **Limite funcional:** anexos em respostas de tópico são rejeitados explicitamente; o compositor de respostas não oferece envio de arquivo.
+- **Pendências anteriores:** os Blocos 4 e 5 seguem com a validação visual multiusuário pendente por falta de um ambiente web/API com duas contas; essa conferência permanece registrada como desvio de ordem.
+- **Próxima etapa:** fechar a validação local e o CI do Bloco 6, publicar commits pequenos em `main` e atualizar este registro com o resultado do CI.
 
 ### 2026-10-22 — Bloco 0 concluído
 

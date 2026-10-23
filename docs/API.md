@@ -40,6 +40,7 @@ Todas as rotas abaixo usam o prefixo `/api`. Rotas de organização exigem `Auth
 | `GET /channels/:channelId/messages`           | Lista uma página de mensagens; aceita `limit` e `cursor` para buscar o histórico anterior. | Participante autorizado                           |
 | `POST /channels/:channelId/read`              | Atualiza o marcador pessoal de leitura do canal e emite `read:updated`.                    | Participante autorizado                           |
 | `POST /channels/:channelId/messages`          | Publica mensagem com `clientMessageId` idempotente e emite `message:created` no canal.     | Participante autorizado                           |
+| `GET /channels/:channelId/files`              | Lista anexos concluídos do canal; aceita busca e ordenação.                                | Membro do canal/equipe                            |
 
 ## Convites
 
@@ -64,6 +65,19 @@ Todas as rotas abaixo usam o prefixo `/api`. Rotas de organização exigem `Auth
 | `GET /conversations/:conversationId/messages`           | Lista uma página de mensagens com cursor.                                                  | Participante do chat                            |
 | `POST /conversations/:conversationId/read`              | Atualiza o marcador pessoal de leitura e emite `read:updated`.                             | Participante do chat                            |
 | `POST /conversations/:conversationId/messages`          | Publica mensagem com `clientMessageId` idempotente.                                        | Participante do chat                            |
+
+## Arquivos e anexos
+
+| Método e rota                                  | Ação                                                                                 | Acesso                                              |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| `POST /channels/:channelId/messages`           | Pode incluir `attachments: [{ fileName, mimeType, sizeBytes }]`; retorna `uploads`.  | Participante autorizado do canal                    |
+| `POST /conversations/:conversationId/messages` | Pode incluir os mesmos metadados; retorna `uploads`.                                 | Participante do chat                                |
+| `POST /attachments/:attachmentId/complete`     | Confere objeto, tamanho e conteúdo real antes de liberar o anexo.                    | Autor do anexo, com acesso à conversa/canal         |
+| `GET /attachments/:attachmentId/download-url`  | Emite URL assinada por cinco minutos; `disposition` aceita `inline` ou `attachment`. | Participante autorizado da conversa/canal           |
+| `GET /files`                                   | Busca e ordena anexos visíveis por `recent`, `name` ou `size`; padrão: 50 itens.     | Pessoa autenticada; resultados filtrados por acesso |
+| `GET /channels/:channelId/files`               | Lista arquivos do canal; aceita busca e ordenação.                                   | Membro do canal/equipe                              |
+
+O pedido de mensagem aceita no máximo 10 anexos, até 25 MiB cada. Tipos e extensão precisam estar na lista permitida e o servidor confirma o conteúdo após o upload. O envio direto ao armazenamento usa formulários S3 pré-assinados. Anexos pendentes não aparecem nas listas nem podem ser baixados; `storageKey` nunca é retornado. Respostas de tópicos não aceitam anexos. Listagens retornam `items`, `total` e `hasMore`; cada item inclui metadados e a mensagem de origem.
 
 As DMs usam uma chave única derivada do par de IDs, então pedidos concorrentes reutilizam a mesma conversa. As alterações de grupo emitem `conversation:updated` para atualizar as listas das pessoas conectadas. Canais usam `channelId` e as rotas dedicadas acima. A listagem de conversas e espaços inclui `unread`; páginas de mensagens incluem `lastReadAt` e `unreadCount`. A contagem exclui mensagens próprias, respostas de tópicos e mensagens excluídas.
 
