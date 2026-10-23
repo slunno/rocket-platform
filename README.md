@@ -4,7 +4,7 @@ Plataforma de comunicação corporativa da AKR Brands, em português do Brasil. 
 
 ## Estado do projeto
 
-Os **Blocos 0 — Fundação e higiene**, **1 — Design system e shell da aplicação**, **2 — Autenticação e perfil reais** e **3 — Organização, equipes e canais** estão concluídos. O **Bloco 4 — Mensageria completa** está em andamento, com cursor, envio idempotente, edição, exclusão, reações, digitação, tópicos, menções validadas, Markdown sanitizado, leitura no servidor, contadores de não lidas e ressincronização de mensagens após reconexão. A validação integrada do novo marcador de leitura e a conferência manual com dois usuários ainda faltam. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para o plano completo, critérios de aceite, status e pendências.
+Os **Blocos 0 — Fundação e higiene**, **1 — Design system e shell da aplicação**, **2 — Autenticação e perfil reais** e **3 — Organização, equipes e canais** estão concluídos. O **Bloco 4 — Mensageria completa** está em andamento, com cursor, envio idempotente, edição, exclusão, reações, digitação, tópicos, menções validadas, Markdown sanitizado, leitura no servidor, contadores de não lidas e ressincronização de mensagens após reconexão. O CI já validou a migração e os contadores com PostgreSQL; falta conferir a interface com duas sessões. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para o plano completo, critérios de aceite, status e pendências.
 
 ## Status dos blocos
 
@@ -122,4 +122,4 @@ A interface usa uma paleta monocromática concentrada em `apps/web/src/styles/to
 
 ## Próximas etapas
 
-Validação integrada e conferência entre dois usuários da mensageria, anexos, presença, atividade, notificações, busca, calendário, reuniões, produtividade e recursos de administração seguem planejados em [`docs/ROADMAP.md`](docs/ROADMAP.md) e ainda não devem ser considerados disponíveis. Os papéis e as regras de acesso atuais estão em [`docs/PERMISSOES.md`](docs/PERMISSOES.md); os endpoints estão em [`docs/API.md`](docs/API.md).
+Conferência entre dois usuários da mensageria, anexos, presença, atividade, notificações, busca, calendário, reuniões, produtividade e recursos de administração seguem planejados em [`docs/ROADMAP.md`](docs/ROADMAP.md) e ainda não devem ser considerados disponíveis. Os papéis e as regras de acesso atuais estão em [`docs/PERMISSOES.md`](docs/PERMISSOES.md); os endpoints estão em [`docs/API.md`](docs/API.md).

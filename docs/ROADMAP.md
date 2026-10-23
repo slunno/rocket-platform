@@ -125,16 +125,17 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 
 ### 2026-10-23 — Bloco 4 em andamento
 
-- **Status:** 🚧 Bloco em andamento; cursores, idempotência, edição, exclusão, reações, typing, tópicos, menções, texto formatado, marcadores de leitura e ressincronização estão implementados. Ainda falta validar os marcadores no PostgreSQL do CI e conferir o fluxo simultâneo com duas sessões.
+- **Status:** 🚧 Bloco em andamento; cursores, idempotência, edição, exclusão, reações, typing, tópicos, menções, texto formatado, marcadores de leitura e ressincronização estão implementados e o CI validou a integração PostgreSQL. Ainda falta conferir o fluxo simultâneo com duas sessões.
 - **Entregue:** histórico de canais e conversas por cursor estável, carregamento das páginas anteriores mantendo a rolagem; envio com `clientMessageId` idempotente; reducer reconcilia mensagens otimistas, páginas e eventos. Edição/exclusão respeitam autoria; exclusão é lógica; reações são idempotentes e mostram participantes. O evento de digitação valida a sala no servidor e expira no cliente após inatividade. Respostas usam `replyToId`, têm cursor, ficam fora da linha do tempo principal e atualizam a contagem do tópico por socket. Menções têm autocomplete e o servidor rejeita pessoas fora da conversa. O renderizador próprio suporta negrito, itálico, código, listas e links HTTP(S) sem HTML bruto nem busca de metadados externos. Conversas e canais calculam não lidas no servidor, sincronizam a leitura entre sessões, exibem contadores e um separador de novas mensagens; ao reconectar, a interface busca novamente as páginas carregadas e os contadores da barra lateral.
-- **Validação local:** lint, format check, typecheck e build passaram; 36 testes passaram e 3 testes de integração PostgreSQL foram ignorados por falta de banco local. O CI #20 validou tópicos e o CI #21 validou menções/Markdown com migração, build, seed e smoke test. A nova migração e o ciclo não lida → lida aguardam o próximo workflow.
+- **Validação local:** lint, format check, typecheck e build passaram; 36 testes passaram e 3 testes de integração PostgreSQL foram ignorados por falta de banco local. O CI #20 validou tópicos, o CI #21 validou menções/Markdown e o CI #22 validou a nova migração e o ciclo não lida → lida com PostgreSQL, build, seed e smoke test.
 - **CI #16:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39949362891), incluindo migração, integração de cursor/retries, build, seed e smoke test.
 - **CI #17:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39950279520), incluindo testes integrados de edição, exclusão lógica e reações com PostgreSQL.
 - **CI #18:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39951288085), incluindo build, migrações, seed e smoke test.
 - **CI #19:** falhou porque o teste de retry ainda exigia igualdade exata com apenas `id` e `text`, embora a API devolva a mensagem completa; a asserção foi corrigida no commit `0ddd008`.
 - **CI #20:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39953080484), incluindo teste integrado de idempotência de tópico, migração, build, seed e smoke test.
 - **CI #21:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39955302804), incluindo autorização de menções, Markdown/preview, build, seed e smoke test.
-- **Próxima etapa:** enviar e validar no CI a migração dos marcadores de leitura e os testes integrados de contagem; depois conferir o fluxo entre dois usuários e seguir para o Bloco 5.
+- **CI #22:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39957321889), incluindo migração de marcadores, autorização, contagem e limpeza de não lidas, build, seed e smoke test.
+- **Próxima etapa:** conferir o fluxo visual entre duas sessões quando houver ambiente integrado; continuar pelo Bloco 5 — busca de pessoas e criação idempotente de DMs.
 
 ### 2026-10-22 — Bloco 0 concluído
 
