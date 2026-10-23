@@ -2,8 +2,8 @@ import { Router } from 'express';
 import type { Server } from 'socket.io';
 import { messageInputSchema, paginationQuerySchema } from '@rocket/shared';
 import { prisma } from './lib/prisma.js';
-import { requireAuth, signUserToken } from './auth.js';
-import { env } from './env.js';
+import { requireAuth } from './auth.js';
+import { attachAuthSocketServer, authRouter } from './auth/routes.js';
 
 const getRouteParam = (value: string | string[] | undefined) =>
   Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
@@ -20,6 +20,7 @@ function withReactionCounts<T extends { reactions: { emoji: string }[] }>(messag
 
 export function createApiRouter(io: Server) {
   const router = Router();
+  attachAuthSocketServer(io);
 
   router.get('/health', async (_req, res) => {
     try {
@@ -30,26 +31,7 @@ export function createApiRouter(io: Server) {
     }
   });
 
-  router.post('/auth/demo', async (_req, res) => {
-    if (env.NODE_ENV === 'production' || !env.DEMO_AUTH_ENABLED) {
-      return res.status(404).json({
-        error: { code: 'NOT_FOUND', message: 'Rota não encontrada.' },
-      });
-    }
-    const user = await prisma.user.findUnique({
-      where: { id: 'demo-user' },
-      select: { id: true, username: true, displayName: true },
-    });
-    if (!user) {
-      return res.status(503).json({
-        error: {
-          code: 'DEMO_USER_MISSING',
-          message: 'Carregue o seed antes de usar a sessão demo.',
-        },
-      });
-    }
-    return res.json({ token: signUserToken(user.id), user });
-  });
+  router.use('/auth', authRouter);
 
   router.get('/conversations', requireAuth, async (req, res, next) => {
     try {

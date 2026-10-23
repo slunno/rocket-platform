@@ -12,6 +12,7 @@ jobs:
       DATABASE_URL: postgresql://rocket:rocket-ci-password@localhost:5432/rocket?schema=public
       JWT_SECRET: ci-secret-with-at-least-32-characters
       DEMO_AUTH_ENABLED: 'true'
+      AUTH_INTEGRATION_TESTS: 'true'
     services:
       postgres:
         image: postgres:17-alpine
@@ -36,9 +37,9 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm run typecheck
+      - run: npm run db:migrate:deploy
       - run: npm run test
       - run: npm run build
-      - run: npm run db:migrate:deploy
       - run: npm run db:seed
       - name: Smoke test local app
         run: |

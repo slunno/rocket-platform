@@ -14,6 +14,16 @@ export const envSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+    MAIL_PROVIDER: z.enum(['log', 'smtp']).default('log'),
+    MAIL_FROM: z.string().optional(),
+    SMTP_HOST: z.string().optional(),
+    SMTP_PORT: z.coerce.number().int().min(1).max(65_535).default(587),
+    SMTP_SECURE: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASSWORD: z.string().optional(),
     API_PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
     WEB_ORIGIN: z.string().url().default('http://localhost:5173'),
   })
@@ -36,6 +46,30 @@ export const envSchema = z
         code: 'custom',
         path: ['DEMO_AUTH_ENABLED'],
         message: 'A autenticação demo deve ficar desativada em produção.',
+      });
+    }
+    if (env.NODE_ENV === 'production' && env.MAIL_PROVIDER !== 'smtp') {
+      context.addIssue({
+        code: 'custom',
+        path: ['MAIL_PROVIDER'],
+        message: 'Configure um provedor SMTP de e-mail em produção.',
+      });
+    }
+    if (env.MAIL_PROVIDER === 'smtp') {
+      const requiredMailSettings = [
+        'MAIL_FROM',
+        'SMTP_HOST',
+        'SMTP_USER',
+        'SMTP_PASSWORD',
+      ] as const;
+      requiredMailSettings.forEach((setting) => {
+        if (!env[setting]?.trim()) {
+          context.addIssue({
+            code: 'custom',
+            path: [setting],
+            message: `${setting} é obrigatório quando MAIL_PROVIDER=smtp.`,
+          });
+        }
       });
     }
   });
