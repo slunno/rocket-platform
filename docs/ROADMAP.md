@@ -12,7 +12,7 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 | 3 — Organização, equipes e canais            | ✅ Concluído    | Workspace → equipes → canais, convites, papéis e permissões de servidor validados com migração, testes integrados e smoke test no CI.                                  |
 | 4 — Mensageria completa                      | 🚧 Em andamento | Cursor, idempotência, edição, exclusão, threads, reações, menções, marcadores de leitura, contadores de não lidas e ressincronização; validação multiusuário pendente. |
 | 5 — Chats 1:1 e em grupo                     | 🚧 Em andamento | Busca de pessoas, DMs idempotentes, grupos com foto HTTPS, participantes, silenciar e fixar; sem duplicação de conversas.                                              |
-| 6 — Arquivos e anexos                        | 🚧 Em andamento | MinIO e StorageProvider com upload, preview e download autorizados, respeitando limites e tipos permitidos; implementação local pronta, aguardando CI e publicação.    |
+| 6 — Arquivos e anexos                        | 🚧 Em andamento | MinIO e StorageProvider com upload, preview e download autorizados, respeitando limites e tipos permitidos; código publicado, CI aguarda validação do serviço MinIO.   |
 | 7 — Presença, Atividade e Notificações       | ⏳ Pendente     | Presença via Redis, feed, notificações e preferências consistentes entre instâncias.                                                                                   |
 | 8 — Busca                                    | ⏳ Pendente     | Busca PostgreSQL por mensagens, pessoas, canais e arquivos; resultados obedecem permissões.                                                                            |
 | 9 — Calendário e Reuniões                    | ⏳ Pendente     | Calendário, eventos e reuniões LiveKit com autorização, áudio/vídeo e compartilhamento entre participantes.                                                            |
@@ -151,12 +151,13 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 
 ### 2026-10-23 — Bloco 6 em andamento
 
-- **Status:** 🚧 implementação local pronta; build, lint, typecheck, testes e CI ainda precisam ser fechados antes de publicar.
+- **Status:** 🚧 implementação publicada em `main`; build, lint, typecheck, testes e auditoria passaram localmente. O CI #28 falhou ao baixar a imagem MinIO do registry; o workflow e o Compose agora apontam para a imagem pública de teste `bitnamilegacy/minio:2025.7.23` e precisam ser publicados/validados.
 - **Entregue no checkout:** armazenamento S3 compatível com MinIO e configuração local/CI; upload direto com formulário pré-assinado, limite de 25 MiB por arquivo, até 10 anexos por mensagem, lista de tipos permitidos, nome sanitizado e verificação do conteúdo real antes da conclusão. Anexos são autorizados pela conversa/canal, `storageKey` não sai da API, downloads usam URL curta assinada e arquivos só aparecem depois de verificados. A interface aceita botão, arrastar, colar e progresso; mostra prévias/cartões e oferece busca/ordenação global e aba de arquivos do canal.
-- **Validação já observada nesta execução:** build de produção local passou; ainda faltam rodar novamente lint, typecheck, testes, auditoria e fechar o CI com PostgreSQL/MinIO.
+- **Validação local:** `npm run build`, `npm run lint`, `npm run typecheck`, `npm test` (48 passaram; 3 testes de integração ignorados sem PostgreSQL local), `npm run format:check`, `git diff --check` e `npm audit --audit-level=moderate` passaram.
+- **CI #28:** falhou durante a inicialização do MinIO: `quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z` retornou `unauthorized`; migrações PostgreSQL passaram. O serviço local de teste foi trocado para `bitnamilegacy/minio:2025.7.23`; a imagem é antiga e sem atualizações, portanto deve ficar restrita ao desenvolvimento/CI.
 - **Limite funcional:** anexos em respostas de tópico são rejeitados explicitamente; o compositor de respostas não oferece envio de arquivo.
 - **Pendências anteriores:** os Blocos 4 e 5 seguem com a validação visual multiusuário pendente por falta de um ambiente web/API com duas contas; essa conferência permanece registrada como desvio de ordem.
-- **Próxima etapa:** fechar a validação local e o CI do Bloco 6, publicar commits pequenos em `main` e atualizar este registro com o resultado do CI.
+- **Próxima etapa:** publicar a troca de imagem local e repetir o CI com PostgreSQL/MinIO; se o job passar, fechar o Bloco 6 e iniciar o Bloco 7.
 
 ### 2026-10-22 — Bloco 0 concluído
 

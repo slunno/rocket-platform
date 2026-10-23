@@ -4,7 +4,7 @@ Plataforma de comunicação corporativa da AKR Brands, em português do Brasil. 
 
 ## Estado do projeto
 
-Os **Blocos 0 a 3** estão concluídos. Os **Blocos 4 e 5** têm implementação e CI concluídos, mas ainda aguardam conferência visual entre duas contas pelo navegador integrado. O **Bloco 6 — Arquivos e anexos** está em andamento: upload e navegação de arquivos foram implementados e o build local passou; CI, publicação e aceite ainda estão pendentes. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para critérios, status e pendências.
+Os **Blocos 0 a 3** estão concluídos. Os **Blocos 4 e 5** têm implementação e CI concluídos, mas ainda aguardam conferência visual entre duas contas pelo navegador integrado. O **Bloco 6 — Arquivos e anexos** está em andamento: upload e navegação de arquivos foram publicados em `main`, e a validação local passou; o CI precisa ser repetido após corrigirmos a origem da imagem MinIO usada em desenvolvimento/teste. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para critérios, status e pendências.
 
 ## Status dos blocos
 
@@ -129,4 +129,4 @@ A interface usa uma paleta monocromática concentrada em `apps/web/src/styles/to
 
 ## Próximas etapas
 
-O Bloco 6 de anexos aguarda CI e publicação; presença, atividade, notificações, busca, calendário, reuniões, produtividade e administração seguem nos próximos blocos de [`docs/ROADMAP.md`](docs/ROADMAP.md). Os CIs #25 e #26 validaram chats com PostgreSQL. Papéis e regras de acesso estão em [`docs/PERMISSOES.md`](docs/PERMISSOES.md); os endpoints estão em [`docs/API.md`](docs/API.md).
+O Bloco 6 de anexos aguarda CI verde após a correção da imagem de MinIO para desenvolvimento/teste; presença, atividade, notificações, busca, calendário, reuniões, produtividade e administração seguem nos próximos blocos de [`docs/ROADMAP.md`](docs/ROADMAP.md). Os CIs #25 e #26 validaram chats com PostgreSQL. Papéis e regras de acesso estão em [`docs/PERMISSOES.md`](docs/PERMISSOES.md); os endpoints estão em [`docs/API.md`](docs/API.md).
