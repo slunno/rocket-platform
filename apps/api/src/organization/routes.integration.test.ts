@@ -28,6 +28,7 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
     app.use(express.json());
     const socketServer = {
       in: () => ({ socketsJoin: async () => undefined, socketsLeave: async () => undefined }),
+      to: () => ({ emit: () => undefined }),
     } as unknown as SocketServer;
     app.use('/', createApiRouter(socketServer));
     server = createServer(app);
@@ -138,6 +139,77 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
     const privateChannel = (await privateCreated.json()) as { id: string; joined: boolean };
     expect(publicChannel.joined).toBe(true);
     expect(privateChannel.joined).toBe(true);
+
+    const clientMessageId = randomUUID();
+    const firstMessage = await request(
+      'POST',
+      `/channels/${publicChannel.id}/messages`,
+      owner.accessToken,
+      { text: 'Primeira mensagem da página.', clientMessageId },
+    );
+    const retriedMessage = await request(
+      'POST',
+      `/channels/${publicChannel.id}/messages`,
+      owner.accessToken,
+      { text: 'Texto repetido após retry.', clientMessageId },
+    );
+    const secondMessage = await request(
+      'POST',
+      `/channels/${publicChannel.id}/messages`,
+      owner.accessToken,
+      { text: 'Segunda mensagem.', clientMessageId: randomUUID() },
+    );
+    const thirdMessage = await request(
+      'POST',
+      `/channels/${publicChannel.id}/messages`,
+      owner.accessToken,
+      { text: 'Terceira mensagem.', clientMessageId: randomUUID() },
+    );
+    const firstMessageJson = (await firstMessage.json()) as { id: string; text: string };
+    const retryMessageJson = (await retriedMessage.json()) as { id: string; text: string };
+    expect(firstMessage.status).toBe(201);
+    expect(retriedMessage.status).toBe(200);
+    expect(retryMessageJson).toEqual(firstMessageJson);
+    expect(secondMessage.status).toBe(201);
+    expect(thirdMessage.status).toBe(201);
+
+    const recentMessagesResponse = await request(
+      'GET',
+      `/channels/${publicChannel.id}/messages?limit=2`,
+      owner.accessToken,
+    );
+    const recentPage = (await recentMessagesResponse.json()) as {
+      items: { id: string }[];
+      nextCursor: string | null;
+    };
+    expect(recentMessagesResponse.status).toBe(200);
+    expect(recentPage.items).toHaveLength(2);
+    expect(recentPage.nextCursor).toBe(recentPage.items[0]?.id);
+
+    const olderMessagesResponse = await request(
+      'GET',
+      `/channels/${publicChannel.id}/messages?limit=2&cursor=${encodeURIComponent(recentPage.nextCursor!)}`,
+      owner.accessToken,
+    );
+    const olderPage = (await olderMessagesResponse.json()) as {
+      items: { id: string }[];
+      nextCursor: string | null;
+    };
+    expect(olderMessagesResponse.status).toBe(200);
+    expect(olderPage.items).toHaveLength(1);
+    expect(olderPage.nextCursor).toBeNull();
+    expect(new Set([...olderPage.items, ...recentPage.items].map(({ id }) => id)).size).toBe(3);
+    expect(await prisma.message.count({ where: { channelId: publicChannel.id } })).toBe(3);
+    expect(
+      (
+        await request(
+          'GET',
+          `/channels/${privateChannel.id}/messages?cursor=${encodeURIComponent(firstMessageJson.id)}`,
+          owner.accessToken,
+        )
+      ).status,
+    ).toBe(400);
+
     expect(
       (
         await request('PATCH', `/channels/${publicChannel.id}`, owner.accessToken, {

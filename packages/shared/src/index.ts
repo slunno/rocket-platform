@@ -122,6 +122,7 @@ export const socketEvents = {
 
 export const paginationQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
+  cursor: z.string().trim().min(1).max(128).optional(),
 });
 
 export type ApiError = z.infer<typeof apiErrorSchema>;
@@ -129,6 +130,7 @@ export type MessageInput = z.infer<typeof messageInputSchema>;
 export type UserSummary = z.infer<typeof userSummarySchema>;
 export type RegisterInput = z.infer<typeof registerInputSchema>;
 export type LoginInput = z.infer<typeof loginInputSchema>;
+export type PaginationQuery = z.infer<typeof paginationQuerySchema>;
 export type ProfileUpdateInput = z.infer<typeof profileUpdateInputSchema>;
 export type WorkspaceCreateInput = z.infer<typeof workspaceCreateInputSchema>;
 export type WorkspaceUpdateInput = z.infer<typeof workspaceUpdateInputSchema>;

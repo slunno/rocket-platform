@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   loginInputSchema,
   messageInputSchema,
+  paginationQuerySchema,
   channelCreateInputSchema,
   channelPreferenceInputSchema,
   memberInputSchema,
@@ -24,6 +25,15 @@ describe('contratos compartilhados', () => {
   it('rejeita mensagem vazia ou acima do limite', () => {
     expect(messageInputSchema.safeParse({ text: '   ' }).success).toBe(false);
     expect(messageInputSchema.safeParse({ text: 'a'.repeat(10_001) }).success).toBe(false);
+  });
+
+  it('valida paginação de mensagens por cursor', () => {
+    expect(paginationQuerySchema.parse({ cursor: 'msg-anterior' })).toEqual({
+      limit: 50,
+      cursor: 'msg-anterior',
+    });
+    expect(paginationQuerySchema.safeParse({ limit: 101 }).success).toBe(false);
+    expect(paginationQuerySchema.safeParse({ cursor: ' ' }).success).toBe(false);
   });
 
   it('valida os campos básicos de perfil retornados pela API', () => {

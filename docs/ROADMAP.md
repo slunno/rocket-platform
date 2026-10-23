@@ -121,7 +121,14 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 - **Ajustes finais:** convite exibe o nome da equipe de destino; criação de canal navega usando os dados atualizados; admin não pode remover outro admin; teste de integração monta o roteador completo para verificar autorização dos endpoints de mensagens.
 - **Validação local:** `npm run build`, `npm run lint`, `npm run typecheck`, `npm run test` (24 aprovados; 3 testes de integração ignorados localmente sem PostgreSQL), `npm run format:check`, `git diff --check` e `npm audit --audit-level=moderate` passaram; zero vulnerabilidades. A verificação visual com API mockada cobriu cadastro, criação de equipe e canal e o diálogo de convite.
 - **CI #14:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39948022082), incluindo migração e testes integrados com PostgreSQL 17, build, seed e smoke test da API e web.
-- **Próximo bloco:** Bloco 4 — Mensageria completa. Implementar paginação por cursor e envio idempotente como primeira fatia, após revisar o estado atual das mensagens.
+- **Próxima etapa:** iniciar o Bloco 4 — Mensageria completa — pela paginação por cursor e pelo envio idempotente, após revisar o estado atual das mensagens.
+
+### 2026-10-23 — Bloco 4 em andamento
+
+- **Status:** 🚧 Primeira fatia implementada no checkout; validação do banco e publicação ainda pendentes.
+- **Entregue nesta fatia:** histórico de canais e conversas com páginas por cursor estável, indicação `nextCursor`, carregamento das páginas anteriores sem perder a posição de rolagem; mensagens com `clientMessageId` UUID único por autor e conversa/canal; retries retornam a mensagem existente. O reducer substitui o envio otimista pelo registro confirmado e evita duplicatas ao mesclar páginas e eventos do socket.
+- **Validação local:** build, lint, typecheck, format check, 28 testes aprovados, audit sem vulnerabilidades e `git diff --check`; 3 testes de integração PostgreSQL são ignorados localmente porque o host não tem banco. O teste integrado cobre retries, cursor entre páginas, IDs distintos e escopo do cursor e será exercitado no CI.
+- **Próxima etapa:** confirmar migração e integração no CI; depois implementar edição/exclusão e eventos correspondentes, mantendo o aceite do Bloco 4 aberto.
 
 ### 2026-10-22 — Bloco 0 concluído
 

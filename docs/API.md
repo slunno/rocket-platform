@@ -28,17 +28,17 @@ Todas as rotas abaixo usam o prefixo `/api`. Rotas de organização exigem `Auth
 
 ## Canais
 
-| Método e rota                                 | Ação                                                                     | Acesso                                            |
-| --------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------- |
-| `POST /teams/:teamId/channels`                | Cria canal `PUBLIC` ou `PRIVATE`.                                        | Proprietário ou administrador do espaço           |
-| `PATCH /channels/:channelId`                  | Atualiza nome, descrição ou visibilidade.                                | Proprietário ou administrador do espaço           |
-| `DELETE /channels/:channelId`                 | Arquiva o canal.                                                         | Proprietário ou administrador do espaço           |
-| `POST /channels/:channelId/members`           | Adiciona pessoa do espaço a canal privado.                               | Proprietário ou administrador                     |
-| `GET /channels/:channelId/members`            | Lista participantes ou, para canal público, participantes da equipe.     | Participante; gestor pode consultar canal privado |
-| `DELETE /channels/:channelId/members/:userId` | Retira participante de canal privado; pessoa pode sair do próprio canal. | Proprietário/administrador ou a própria pessoa    |
-| `PATCH /channels/:channelId/preference`       | Atualiza `favorite` e/ou `hidden` da própria pessoa.                     | Participante do canal                             |
-| `GET /channels/:channelId/messages`           | Lista mensagens do canal.                                                | Participante autorizado                           |
-| `POST /channels/:channelId/messages`          | Publica mensagem e emite `message:created` na sala Socket.IO do canal.   | Participante autorizado                           |
+| Método e rota                                 | Ação                                                                                       | Acesso                                            |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| `POST /teams/:teamId/channels`                | Cria canal `PUBLIC` ou `PRIVATE`.                                                          | Proprietário ou administrador do espaço           |
+| `PATCH /channels/:channelId`                  | Atualiza nome, descrição ou visibilidade.                                                  | Proprietário ou administrador do espaço           |
+| `DELETE /channels/:channelId`                 | Arquiva o canal.                                                                           | Proprietário ou administrador do espaço           |
+| `POST /channels/:channelId/members`           | Adiciona pessoa do espaço a canal privado.                                                 | Proprietário ou administrador                     |
+| `GET /channels/:channelId/members`            | Lista participantes ou, para canal público, participantes da equipe.                       | Participante; gestor pode consultar canal privado |
+| `DELETE /channels/:channelId/members/:userId` | Retira participante de canal privado; pessoa pode sair do próprio canal.                   | Proprietário/administrador ou a própria pessoa    |
+| `PATCH /channels/:channelId/preference`       | Atualiza `favorite` e/ou `hidden` da própria pessoa.                                       | Participante do canal                             |
+| `GET /channels/:channelId/messages`           | Lista uma página de mensagens; aceita `limit` e `cursor` para buscar o histórico anterior. | Participante autorizado                           |
+| `POST /channels/:channelId/messages`          | Publica mensagem com `clientMessageId` idempotente e emite `message:created` no canal.     | Participante autorizado                           |
 
 ## Convites
 
@@ -52,3 +52,5 @@ Todas as rotas abaixo usam o prefixo `/api`. Rotas de organização exigem `Auth
 ## Chats
 
 `GET /conversations`, `GET /conversations/:conversationId/messages` e `POST /conversations/:conversationId/messages` permanecem reservadas a conversas `DIRECT` e `GROUP`. Canais usam `channelId` e as rotas dedicadas acima.
+
+As rotas de mensagens recebem `limit` (1–100, padrão 50) e um `cursor` opcional identificado pela mensagem mais antiga da página atual. A resposta de listagem contém `{ "items": [...], "nextCursor": "..." }`; `nextCursor` é `null` quando não há mensagens anteriores. Envios podem incluir `clientMessageId` UUID, único por pessoa e conversa/canal, para retries retornarem a mesma mensagem em vez de criar uma duplicata.

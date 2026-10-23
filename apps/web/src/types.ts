@@ -14,6 +14,7 @@ export type Reaction = { emoji: string; count: number; active?: boolean };
 
 export type Message = {
   id: string;
+  clientMessageId?: string;
   author: Person;
   text: string;
   time: string;

@@ -67,3 +67,9 @@ Registros curtos de contexto, decisão e consequência.
 - **Contexto:** o host local não tem Docker nem `psql`, então não pode aplicar migrações ou executar os testes de integração de banco.
 - **Decisão:** manter os testes de autorização integrados sob `AUTH_INTEGRATION_TESTS=true`, para rodarem no workflow existente sobre PostgreSQL 17.
 - **Consequência:** a validação local cobre tipagem, lint, testes sem banco e build; a conclusão do bloco depende do CI aplicar migrações e passar testes e seed.
+
+## 2026-10-23 — Cursor e idempotência de mensagens
+
+- **Contexto:** mensagens precisam carregar histórico antigo com custo previsível e suportar retries sem duplicar envios quando a resposta da rede se perde.
+- **Decisão:** paginar por ID de mensagem no banco, ordenar por `createdAt` e `id` em ordem estável, e aceitar um UUID `clientMessageId` único por autor e conversa/canal.
+- **Consequência:** a migração mantém compatibilidade com mensagens antigas via coluna nula; páginas informam `nextCursor` e retries com a mesma chave retornam o mesmo registro. A interface conserva a posição da rolagem ao inserir mensagens antigas e reconcilia otimistas pelo UUID.

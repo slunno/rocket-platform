@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { io, type Socket } from 'socket.io-client';
 import { Check } from 'lucide-react';
@@ -42,6 +50,7 @@ import {
   type WorkspaceRole,
 } from '../../api';
 import type { Conversation, Message } from '../../types';
+import { messagesReducer } from './message-state';
 import { useAuth } from '../../auth/AuthContext';
 import { ChatSidebar } from './components/ChatSidebar';
 import { ConversationDetails } from './components/ConversationDetails';
@@ -72,8 +81,11 @@ export function ChatPage() {
   );
   const [directConversations, setDirectConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState('');
-  const [messageMap, setMessageMap] = useState<Record<string, Message[]>>({});
+  const [messageMap, dispatchMessage] = useReducer(messagesReducer, {});
   const [loadedConversationIds, setLoadedConversationIds] = useState<Set<string>>(new Set());
+  const [messagePages, setMessagePages] = useState<
+    Record<string, { nextCursor: string | null; loadingOlder: boolean }>
+  >({});
   const [text, setText] = useState('');
   const [query, setQuery] = useState('');
   const [online, setOnline] = useState(false);
@@ -90,6 +102,7 @@ export function ChatPage() {
   });
   const [toast, setToast] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const skipNextAutoScrollRef = useRef(false);
   const socketRef = useRef<Socket | null>(null);
   const latestTokenRef = useRef(token);
   const myIdRef = useRef(me.id);
@@ -235,11 +248,10 @@ export function ChatPage() {
       const normalized = mapRemoteMessage(message, myIdRef.current);
       const parentId = message.conversationId ?? message.channelId ?? '';
       if (!parentId) return;
-      setMessageMap((current) => {
-        const existing = current[parentId] ?? [];
-        return existing.some((item) => item.id === normalized.id)
-          ? current
-          : { ...current, [parentId]: [...existing, normalized] };
+      dispatchMessage({
+        type: 'message-created',
+        conversationId: parentId,
+        message: normalized,
       });
     });
     return () => {
@@ -263,10 +275,12 @@ export function ChatPage() {
     if (!token || !active || loadedConversationIds.has(active.id)) return;
     const load = active.kind === 'CHANNEL' ? getChannelMessages : getMessages;
     void load(token, active.id)
-      .then((remote) => {
-        setMessageMap((current) => ({
+      .then((page) => {
+        const messages = page.items.map((message) => mapRemoteMessage(message, me.id));
+        dispatchMessage({ type: 'page-loaded', conversationId: active.id, messages });
+        setMessagePages((current) => ({
           ...current,
-          [active.id]: remote.map((message) => mapRemoteMessage(message, me.id)),
+          [active.id]: { nextCursor: page.nextCursor, loadingOlder: false },
         }));
         setLoadedConversationIds((current) => new Set(current).add(active.id));
       })
@@ -274,6 +288,10 @@ export function ChatPage() {
   }, [active, loadedConversationIds, me.id, token]);
 
   useEffect(() => {
+    if (skipNextAutoScrollRef.current) {
+      skipNextAutoScrollRef.current = false;
+      return;
+    }
     messagesEndRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'end' });
   }, [activeId, activeMessages.length]);
 
@@ -318,13 +336,47 @@ export function ChatPage() {
     return detail;
   };
 
+  const loadOlderMessages = async () => {
+    const conversationId = active?.id;
+    const pageState = conversationId ? messagePages[conversationId] : undefined;
+    if (!active || !token || !pageState?.nextCursor || pageState.loadingOlder) return;
+    const cursor = pageState.nextCursor;
+    const load = active.kind === 'CHANNEL' ? getChannelMessages : getMessages;
+    setMessagePages((current) => ({
+      ...current,
+      [active.id]: { ...pageState, loadingOlder: true },
+    }));
+    try {
+      const page = await load(token, active.id, cursor);
+      const olderMessages = page.items.map((message) => mapRemoteMessage(message, me.id));
+      if (olderMessages.length) skipNextAutoScrollRef.current = true;
+      dispatchMessage({
+        type: 'older-page-loaded',
+        conversationId: active.id,
+        messages: olderMessages,
+      });
+      setMessagePages((current) => ({
+        ...current,
+        [active.id]: { nextCursor: page.nextCursor, loadingOlder: false },
+      }));
+    } catch {
+      setMessagePages((current) => ({
+        ...current,
+        [active.id]: { ...pageState, loadingOlder: false },
+      }));
+      showToast('Não foi possível carregar as mensagens anteriores.');
+    }
+  };
+
   const handleSend = async () => {
     const cleanText = text.trim();
     if (!cleanText || !active) return;
     setText('');
-    const temporaryId = `local-${Date.now()}`;
+    const clientMessageId = crypto.randomUUID();
+    const temporaryId = `local-${clientMessageId}`;
     const optimistic: Message = {
       id: temporaryId,
+      clientMessageId,
       author: me,
       text: cleanText,
       time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(
@@ -333,36 +385,24 @@ export function ChatPage() {
       date: new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(new Date()),
       mine: true,
     };
-    setMessageMap((current) => ({
-      ...current,
-      [active.id]: [...(current[active.id] ?? []), optimistic],
-    }));
+    dispatchMessage({ type: 'optimistic-added', conversationId: active.id, message: optimistic });
     if (token) {
       try {
         const created =
           active.kind === 'CHANNEL'
-            ? await sendChannelMessage(token, active.id, cleanText)
-            : await sendMessage(token, active.id, cleanText);
-        setMessageMap((current) => {
-          const existing = current[active.id] ?? [];
-          if (existing.some((message) => message.id === created.id)) {
-            return {
-              ...current,
-              [active.id]: existing.filter((message) => message.id !== temporaryId),
-            };
-          }
-          return {
-            ...current,
-            [active.id]: existing.map((message) =>
-              message.id === temporaryId ? mapRemoteMessage(created, me.id) : message,
-            ),
-          };
+            ? await sendChannelMessage(token, active.id, cleanText, clientMessageId)
+            : await sendMessage(token, active.id, cleanText, clientMessageId);
+        dispatchMessage({
+          type: 'message-created',
+          conversationId: active.id,
+          message: mapRemoteMessage(created, me.id),
         });
       } catch {
-        setMessageMap((current) => ({
-          ...current,
-          [active.id]: (current[active.id] ?? []).filter(({ id }) => id !== temporaryId),
-        }));
+        dispatchMessage({
+          type: 'send-failed',
+          conversationId: active.id,
+          temporaryId,
+        });
         showToast('Não foi possível enviar a mensagem. Confira sua conexão e tente novamente.');
       }
     }
@@ -602,6 +642,9 @@ export function ChatPage() {
                 activeMessages={activeMessages}
                 dateGroups={dateGroups}
                 messagesEndRef={messagesEndRef}
+                nextCursor={messagePages[activeId]?.nextCursor ?? null}
+                isLoadingOlder={messagePages[activeId]?.loadingOlder ?? false}
+                onLoadOlder={loadOlderMessages}
                 me={me}
                 onShowDetails={() => setShowDetails(true)}
                 onToast={showToast}

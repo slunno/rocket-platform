@@ -318,6 +318,7 @@ export type RemoteMessage = {
   id: string;
   conversationId?: string;
   channelId?: string;
+  clientMessageId?: string | null;
   text: string;
   createdAt: string;
   author: {
@@ -330,22 +331,44 @@ export type RemoteMessage = {
   reactions: { emoji: string; _count: { userId: number } }[];
 };
 
+export type RemoteMessagePage = {
+  items: RemoteMessage[];
+  nextCursor: string | null;
+};
+
 export const getConversations = (token: string) =>
   request<RemoteConversation[]>('/api/conversations', token);
-export const getMessages = (token: string, id: string) =>
-  request<RemoteMessage[]>(`/api/conversations/${id}/messages`, token);
-export const getChannelMessages = (token: string, id: string) =>
-  request<RemoteMessage[]>(`/api/channels/${encodeURIComponent(id)}/messages`, token);
+function messagePagePath(path: string, cursor?: string) {
+  const query = new URLSearchParams({ limit: '50' });
+  if (cursor) query.set('cursor', cursor);
+  return `${path}?${query.toString()}`;
+}
+
+export const getMessages = (token: string, id: string, cursor?: string) =>
+  request<RemoteMessagePage>(
+    messagePagePath(`/api/conversations/${encodeURIComponent(id)}/messages`, cursor),
+    token,
+  );
+export const getChannelMessages = (token: string, id: string, cursor?: string) =>
+  request<RemoteMessagePage>(
+    messagePagePath(`/api/channels/${encodeURIComponent(id)}/messages`, cursor),
+    token,
+  );
 export const getOrganizationChannelMessages = getChannelMessages;
-export const sendMessage = (token: string, id: string, text: string) =>
+export const sendMessage = (token: string, id: string, text: string, clientMessageId: string) =>
   request<RemoteMessage>(`/api/conversations/${id}/messages`, token, {
     method: 'POST',
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, clientMessageId }),
   });
-export const sendChannelMessage = (token: string, id: string, text: string) =>
+export const sendChannelMessage = (
+  token: string,
+  id: string,
+  text: string,
+  clientMessageId: string,
+) =>
   request<RemoteMessage>(`/api/channels/${encodeURIComponent(id)}/messages`, token, {
     method: 'POST',
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, clientMessageId }),
   });
 
 const statusMap: Record<AuthUser['status'], Person['status']> = {
@@ -396,6 +419,7 @@ export function mapRemoteMessage(message: RemoteMessage, myId: string): Message 
   const author = mapRemotePerson(message.author);
   return {
     id: message.id,
+    clientMessageId: message.clientMessageId ?? undefined,
     author,
     text: message.text,
     time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(

@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 import { Hash, MessageCircle, MoreHorizontal, Plus, Smile } from 'lucide-react';
 import { Avatar } from '../../../components/ui/Avatar';
 import type { Conversation, Message, Person } from '../../../types';
@@ -11,6 +11,9 @@ export function MessageFeed({
   activeMessages,
   dateGroups,
   messagesEndRef,
+  nextCursor,
+  isLoadingOlder,
+  onLoadOlder,
   me,
   onShowDetails,
   onToast,
@@ -20,10 +23,42 @@ export function MessageFeed({
   activeMessages: Message[];
   dateGroups: MessageGroup[];
   messagesEndRef: RefObject<HTMLDivElement | null>;
+  nextCursor: string | null;
+  isLoadingOlder: boolean;
+  onLoadOlder: () => Promise<void>;
   me: Person;
   onShowDetails: () => void;
   onToast: (message: string) => void;
 }) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isLoadingRef = useRef(false);
+  const pendingScrollRef = useRef<{ conversationId: string; height: number; top: number } | null>(
+    null,
+  );
+  useEffect(() => {
+    isLoadingRef.current = isLoadingOlder;
+  }, [isLoadingOlder]);
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current;
+    const pending = pendingScrollRef.current;
+    if (!container || !pending || isLoadingOlder) return;
+    if (pending.conversationId === active.id) {
+      container.scrollTop = pending.top + container.scrollHeight - pending.height;
+    }
+    pendingScrollRef.current = null;
+  }, [active.id, activeMessages.length, isLoadingOlder]);
+  const requestOlder = () => {
+    const container = scrollContainerRef.current;
+    if (!container || !nextCursor || isLoadingRef.current) return;
+    pendingScrollRef.current = {
+      conversationId: active.id,
+      height: container.scrollHeight,
+      top: container.scrollTop,
+    };
+    isLoadingRef.current = true;
+    void onLoadOlder();
+  };
+
   return (
     <>
       {isChannel && active.id === 'produto' && (
@@ -39,7 +74,26 @@ export function MessageFeed({
           </div>
         </div>
       )}
-      <div className="messages-scroll" role="feed" aria-label={`Mensagens em ${active.name}`}>
+      <div
+        ref={scrollContainerRef}
+        className="messages-scroll"
+        role="feed"
+        aria-label={`Mensagens em ${active.name}`}
+        aria-busy={isLoadingOlder}
+        onScroll={(event) => {
+          if (event.currentTarget.scrollTop <= 24) requestOlder();
+        }}
+      >
+        {nextCursor && (
+          <button
+            className="older-messages-button"
+            type="button"
+            onClick={requestOlder}
+            disabled={isLoadingOlder}
+          >
+            {isLoadingOlder ? 'Carregando mensagens…' : 'Carregar mensagens anteriores'}
+          </button>
+        )}
         {dateGroups.map((group) => (
           <div key={group.date} className="message-date-group">
             <div className="date-divider">

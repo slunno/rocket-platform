@@ -19,6 +19,38 @@ function withReactionCounts<T extends { reactions: { emoji: string }[] }>(messag
   };
 }
 
+const messageInclude = {
+  author: {
+    select: { id: true, username: true, displayName: true, avatarUrl: true, status: true },
+  },
+  reactions: { select: { emoji: true } },
+} as const;
+
+async function listMessages(
+  parent: { conversationId: string } | { channelId: string },
+  limit: number,
+  cursor?: string,
+) {
+  if (cursor) {
+    const cursorMessage = await prisma.message.findFirst({
+      where: { ...parent, id: cursor },
+      select: { id: true },
+    });
+    if (!cursorMessage) return null;
+  }
+
+  const messages = await prisma.message.findMany({
+    where: { ...parent, deletedAt: null },
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    take: limit + 1,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    include: messageInclude,
+  });
+  const hasMore = messages.length > limit;
+  const items = messages.slice(0, limit).reverse().map(withReactionCounts);
+  return { items, nextCursor: hasMore ? (items[0]?.id ?? null) : null };
+}
+
 export function createApiRouter(io: Server) {
   const router = Router();
   attachAuthSocketServer(io);
@@ -99,28 +131,29 @@ export function createApiRouter(io: Server) {
           error: { code: 'CONVERSATION_NOT_FOUND', message: 'Conversa não encontrada.' },
         });
       }
-      const parsedQuery = paginationQuerySchema.safeParse({ limit: req.query.limit });
+      const parsedQuery = paginationQuerySchema.safeParse({
+        limit: req.query.limit,
+        cursor: req.query.cursor,
+      });
       if (!parsedQuery.success) {
         return res.status(400).json({
           error: {
             code: 'VALIDATION_ERROR',
-            message: 'O limite deve ser um número entre 1 e 100.',
+            message: 'A página deve usar um limite entre 1 e 100 e um cursor válido.',
           },
         });
       }
-      const { limit } = parsedQuery.data;
-      const messages = await prisma.message.findMany({
-        where: { conversationId, deletedAt: null },
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          author: {
-            select: { id: true, username: true, displayName: true, avatarUrl: true, status: true },
-          },
-          reactions: { select: { emoji: true } },
-        },
-      });
-      return res.json(messages.reverse().map(withReactionCounts));
+      const page = await listMessages(
+        { conversationId },
+        parsedQuery.data.limit,
+        parsedQuery.data.cursor,
+      );
+      if (!page) {
+        return res.status(400).json({
+          error: { code: 'INVALID_MESSAGE_CURSOR', message: 'O cursor não pertence à conversa.' },
+        });
+      }
+      return res.json(page);
     } catch (error) {
       return next(error);
     }
@@ -138,7 +171,7 @@ export function createApiRouter(io: Server) {
           },
         });
       }
-      const { text } = parsedBody.data;
+      const { text, clientMessageId } = parsedBody.data;
       const membership = await prisma.conversationMember.findUnique({
         where: { conversationId_userId: { conversationId, userId: req.userId! } },
       });
@@ -147,15 +180,36 @@ export function createApiRouter(io: Server) {
           error: { code: 'CONVERSATION_NOT_FOUND', message: 'Conversa não encontrada.' },
         });
       }
-      const message = await prisma.message.create({
-        data: { conversationId, authorId: req.userId!, text },
-        include: {
-          author: {
-            select: { id: true, username: true, displayName: true, avatarUrl: true, status: true },
+      if (clientMessageId) {
+        const existingMessage = await prisma.message.findUnique({
+          where: {
+            conversationId_authorId_clientMessageId: {
+              conversationId,
+              authorId: req.userId!,
+              clientMessageId,
+            },
           },
-          reactions: { select: { emoji: true } },
-        },
-      });
+          include: messageInclude,
+        });
+        if (existingMessage) return res.status(200).json(withReactionCounts(existingMessage));
+      }
+      const message = clientMessageId
+        ? await prisma.message.upsert({
+            where: {
+              conversationId_authorId_clientMessageId: {
+                conversationId,
+                authorId: req.userId!,
+                clientMessageId,
+              },
+            },
+            create: { conversationId, authorId: req.userId!, text, clientMessageId },
+            update: {},
+            include: messageInclude,
+          })
+        : await prisma.message.create({
+            data: { conversationId, authorId: req.userId!, text },
+            include: messageInclude,
+          });
       await prisma.conversation.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() },
@@ -188,27 +242,29 @@ export function createApiRouter(io: Server) {
           },
         });
       }
-      const parsedQuery = paginationQuerySchema.safeParse({ limit: req.query.limit });
+      const parsedQuery = paginationQuerySchema.safeParse({
+        limit: req.query.limit,
+        cursor: req.query.cursor,
+      });
       if (!parsedQuery.success) {
         return res.status(400).json({
           error: {
             code: 'VALIDATION_ERROR',
-            message: 'O limite deve ser um número entre 1 e 100.',
+            message: 'A página deve usar um limite entre 1 e 100 e um cursor válido.',
           },
         });
       }
-      const messages = await prisma.message.findMany({
-        where: { channelId, deletedAt: null },
-        take: parsedQuery.data.limit,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          author: {
-            select: { id: true, username: true, displayName: true, avatarUrl: true, status: true },
-          },
-          reactions: { select: { emoji: true } },
-        },
-      });
-      return res.json(messages.reverse().map(withReactionCounts));
+      const page = await listMessages(
+        { channelId },
+        parsedQuery.data.limit,
+        parsedQuery.data.cursor,
+      );
+      if (!page) {
+        return res.status(400).json({
+          error: { code: 'INVALID_MESSAGE_CURSOR', message: 'O cursor não pertence ao canal.' },
+        });
+      }
+      return res.json(page);
     } catch (error) {
       return next(error);
     }
@@ -240,15 +296,41 @@ export function createApiRouter(io: Server) {
           },
         });
       }
-      const message = await prisma.message.create({
-        data: { channelId, authorId: req.userId!, text: parsedBody.data.text },
-        include: {
-          author: {
-            select: { id: true, username: true, displayName: true, avatarUrl: true, status: true },
+      if (parsedBody.data.clientMessageId) {
+        const existingMessage = await prisma.message.findUnique({
+          where: {
+            channelId_authorId_clientMessageId: {
+              channelId,
+              authorId: req.userId!,
+              clientMessageId: parsedBody.data.clientMessageId,
+            },
           },
-          reactions: { select: { emoji: true } },
-        },
-      });
+          include: messageInclude,
+        });
+        if (existingMessage) return res.status(200).json(withReactionCounts(existingMessage));
+      }
+      const message = parsedBody.data.clientMessageId
+        ? await prisma.message.upsert({
+            where: {
+              channelId_authorId_clientMessageId: {
+                channelId,
+                authorId: req.userId!,
+                clientMessageId: parsedBody.data.clientMessageId,
+              },
+            },
+            create: {
+              channelId,
+              authorId: req.userId!,
+              text: parsedBody.data.text,
+              clientMessageId: parsedBody.data.clientMessageId,
+            },
+            update: {},
+            include: messageInclude,
+          })
+        : await prisma.message.create({
+            data: { channelId, authorId: req.userId!, text: parsedBody.data.text },
+            include: messageInclude,
+          });
       await prisma.channel.update({ where: { id: channelId }, data: { updatedAt: new Date() } });
       const normalizedMessage = withReactionCounts(message);
       io.to(`channel:${channelId}`).emit('message:created', {

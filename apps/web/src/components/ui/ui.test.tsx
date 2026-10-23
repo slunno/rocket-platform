@@ -34,8 +34,8 @@ vi.mock('../../api', async (importOriginal) => {
   return {
     ...actual,
     getConversations: vi.fn().mockResolvedValue([]),
-    getMessages: vi.fn().mockResolvedValue([]),
-    getChannelMessages: vi.fn().mockResolvedValue([]),
+    getMessages: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
+    getChannelMessages: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
     acceptWorkspaceInvite: vi.fn(),
     getWorkspaces: vi
       .fn()

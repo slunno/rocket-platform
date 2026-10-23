@@ -239,27 +239,30 @@ model ConversationMember {
 }
 
 model Message {
-  id             String        @id @default(cuid())
-  conversationId String?
-  channelId      String?
-  authorId       String
-  text           String        @db.Text
-  replyToId      String?
-  createdAt      DateTime      @default(now())
-  editedAt       DateTime?
-  deletedAt      DateTime?
-  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  channel        Channel?      @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  author         User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
-  replyTo        Message?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies        Message[]     @relation("MessageReplies")
-  attachments    Attachment[]
-  reactions      Reaction[]
+  id              String        @id @default(cuid())
+  conversationId  String?
+  channelId       String?
+  authorId        String
+  text            String        @db.Text
+  clientMessageId String?       @db.Uuid
+  replyToId       String?
+  createdAt       DateTime      @default(now())
+  editedAt        DateTime?
+  deletedAt       DateTime?
+  conversation    Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  channel         Channel?      @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  author          User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  replyTo         Message?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies         Message[]     @relation("MessageReplies")
+  attachments     Attachment[]
+  reactions       Reaction[]
 
   @@index([conversationId, createdAt])
   @@index([channelId, createdAt])
   @@index([authorId, createdAt])
   @@index([replyToId])
+  @@unique([conversationId, authorId, clientMessageId])
+  @@unique([channelId, authorId, clientMessageId])
 }
 
 model Attachment {
