@@ -3,6 +3,7 @@ export type ConversationKind = 'CHANNEL' | 'DIRECT' | 'GROUP';
 export type Person = {
   id: string;
   name: string;
+  username?: string;
   initials: string;
   status: 'online' | 'busy' | 'do-not-disturb' | 'away' | 'offline';
   role?: string;

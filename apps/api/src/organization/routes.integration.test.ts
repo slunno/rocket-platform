@@ -701,5 +701,19 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
     expect((await request('GET', `/workspaces/${workspace.id}`, member.accessToken)).status).toBe(
       404,
     );
+    const channelMentionResponse = await request(
+      'POST',
+      `/channels/${publicChannel.id}/messages`,
+      owner.accessToken,
+      { text: 'Atualização para @canal.' },
+    );
+    expect(channelMentionResponse.status).toBe(201);
+    const unavailableMentionResponse = await request(
+      'POST',
+      `/channels/${publicChannel.id}/messages`,
+      owner.accessToken,
+      { text: 'Confira com @pessoa.inexistente.' },
+    );
+    expect(unavailableMentionResponse.status).toBe(400);
   });
 });

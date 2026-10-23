@@ -45,6 +45,62 @@ const messageInclude = {
   _count: { select: { replies: { where: { deletedAt: null } } } },
 } as const;
 
+type MessageTarget = { conversationId: string } | { channelId: string };
+
+function getMentionHandles(text: string) {
+  return [...text.matchAll(/(?:^|\s)@([a-z\d][a-z\d._-]*[a-z\d]|[a-z\d])/gi)].map((match) =>
+    match[1]!.toLowerCase(),
+  );
+}
+
+async function mentionsAreAvailable(text: string, target: MessageTarget) {
+  const mentions = getMentionHandles(text);
+  if (!mentions.length) return true;
+  const mentionChannel = mentions.includes('canal');
+  if ('conversationId' in target && mentionChannel) return false;
+  const usernames = [...new Set(mentions.filter((username) => username !== 'canal'))];
+  if (!usernames.length) return true;
+
+  const memberships =
+    'conversationId' in target
+      ? await prisma.conversationMember.findMany({
+          where: { conversationId: target.conversationId, user: { username: { in: usernames } } },
+          select: { user: { select: { username: true } } },
+        })
+      : await prisma.channel
+          .findUnique({
+            where: { id: target.channelId },
+            select: {
+              teamId: true,
+              visibility: true,
+            },
+          })
+          .then(async (channel) => {
+            if (!channel) return [];
+            return channel.visibility === 'PUBLIC'
+              ? prisma.teamMember.findMany({
+                  where: { teamId: channel.teamId, user: { username: { in: usernames } } },
+                  select: { user: { select: { username: true } } },
+                })
+              : prisma.channelMember.findMany({
+                  where: { channelId: target.channelId, user: { username: { in: usernames } } },
+                  select: { user: { select: { username: true } } },
+                });
+          });
+  return usernames.every((username) =>
+    memberships.some((member) => member.user.username === username),
+  );
+}
+
+function invalidMentionResponse(res: import('express').Response) {
+  return res.status(400).json({
+    error: {
+      code: 'MESSAGE_MENTION_UNAVAILABLE',
+      message: 'A mensagem menciona alguém que não participa desta conversa.',
+    },
+  });
+}
+
 async function findAuthorizedMessage(messageId: string, userId: string) {
   const message = await prisma.message.findFirst({
     where: { id: messageId, deletedAt: null },
@@ -278,6 +334,9 @@ export function createApiRouter(io: Server) {
           error: { code: 'CONVERSATION_NOT_FOUND', message: 'Conversa não encontrada.' },
         });
       }
+      if (!(await mentionsAreAvailable(text, { conversationId }))) {
+        return invalidMentionResponse(res);
+      }
       if (clientMessageId) {
         const existingMessage = await prisma.message.findUnique({
           where: {
@@ -394,6 +453,9 @@ export function createApiRouter(io: Server) {
           },
         });
       }
+      if (!(await mentionsAreAvailable(parsedBody.data.text, { channelId }))) {
+        return invalidMentionResponse(res);
+      }
       if (parsedBody.data.clientMessageId) {
         const existingMessage = await prisma.message.findUnique({
           where: {
@@ -509,6 +571,10 @@ export function createApiRouter(io: Server) {
       }
 
       const { clientMessageId, text } = parsedBody.data;
+      const target = access.message.conversationId
+        ? { conversationId: access.message.conversationId }
+        : { channelId: access.message.channelId! };
+      if (!(await mentionsAreAvailable(text, target))) return invalidMentionResponse(res);
       let existingReply = null;
       if (clientMessageId && access.message.conversationId) {
         existingReply = await prisma.message.findUnique({
@@ -639,6 +705,12 @@ export function createApiRouter(io: Server) {
             message: 'A mensagem deve conter de 1 a 10.000 caracteres.',
           },
         });
+      }
+      const target = access.message.conversationId
+        ? { conversationId: access.message.conversationId }
+        : { channelId: access.message.channelId! };
+      if (!(await mentionsAreAvailable(parsedBody.data.text, target))) {
+        return invalidMentionResponse(res);
       }
       const updatedMessage = await prisma.message.update({
         where: { id: messageId },

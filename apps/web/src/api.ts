@@ -446,6 +446,7 @@ export function mapRemotePerson(
   return {
     id: person.id,
     name,
+    username: person.username,
     initials: name
       .split(' ')
       .filter(Boolean)

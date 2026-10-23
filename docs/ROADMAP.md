@@ -125,13 +125,15 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 
 ### 2026-10-23 — Bloco 4 em andamento
 
-- **Status:** 🚧 Bloco em andamento; cursores, idempotência, edição, exclusão, reações, typing e tópicos implementados. Tópicos aguardam validação integrada; menções, Markdown/preview, não lidas e ressincronização ainda pendentes.
-- **Entregue:** histórico de canais e conversas por cursor estável, carregamento das páginas anteriores mantendo a rolagem; envio com `clientMessageId` idempotente; reducer reconcilia mensagens otimistas, páginas e eventos. Edição/exclusão respeitam autoria; exclusão é lógica; reações são idempotentes e mostram participantes. O evento de digitação valida a sala no servidor e expira no cliente após inatividade. Respostas usam `replyToId`, têm cursor, ficam fora da linha do tempo principal e atualizam a contagem do tópico por socket.
-- **Validação local:** build, lint, typecheck, format check, 32 testes aprovados, audit sem vulnerabilidades e `git diff --check`; testes de integração PostgreSQL são ignorados localmente porque o host não tem banco. Cursor/retry passou no CI #16; edição, exclusão e reações passaram no CI #17; typing passou no CI #18; tópicos aguardam o próximo workflow.
+- **Status:** 🚧 Bloco em andamento; cursores, idempotência, edição, exclusão, reações, typing, tópicos, menções e texto formatado estão implementados. Menções e Markdown/preview aguardam CI; leitura no servidor e ressincronização ainda pendentes.
+- **Entregue:** histórico de canais e conversas por cursor estável, carregamento das páginas anteriores mantendo a rolagem; envio com `clientMessageId` idempotente; reducer reconcilia mensagens otimistas, páginas e eventos. Edição/exclusão respeitam autoria; exclusão é lógica; reações são idempotentes e mostram participantes. O evento de digitação valida a sala no servidor e expira no cliente após inatividade. Respostas usam `replyToId`, têm cursor, ficam fora da linha do tempo principal e atualizam a contagem do tópico por socket. Menções têm autocomplete e o servidor rejeita pessoas fora da conversa. O renderizador próprio suporta negrito, itálico, código, listas e links HTTP(S) sem HTML bruto nem busca de metadados externos.
+- **Validação local:** lint, format check, typecheck e build passaram; 36 testes passaram e 3 testes de integração PostgreSQL foram ignorados por falta de banco local. O CI #20 validou tópicos com PostgreSQL, build, seed e smoke test. A validação de menções aguarda o workflow do commit atual.
 - **CI #16:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39949362891), incluindo migração, integração de cursor/retries, build, seed e smoke test.
 - **CI #17:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39950279520), incluindo testes integrados de edição, exclusão lógica e reações com PostgreSQL.
 - **CI #18:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39951288085), incluindo build, migrações, seed e smoke test.
-- **Próxima etapa:** validar tópicos no CI; depois implementar menções, Markdown/preview sanitizados, não lidas e ressincronização após reconexão.
+- **CI #19:** falhou porque o teste de retry ainda exigia igualdade exata com apenas `id` e `text`, embora a API devolva a mensagem completa; a asserção foi corrigida no commit `0ddd008`.
+- **CI #20:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39953080484), incluindo teste integrado de idempotência de tópico, migração, build, seed e smoke test.
+- **Próxima etapa:** validar menções e Markdown no CI; depois adicionar leitura no servidor, contadores de não lidas, separador de mensagens novas e ressincronização após reconexão.
 
 ### 2026-10-22 — Bloco 0 concluído
 

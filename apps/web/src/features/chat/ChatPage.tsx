@@ -66,6 +66,7 @@ import { MessageFeed } from './components/MessageFeed';
 import { MessageSearchDialog } from './components/MessageSearchDialog';
 import { ThreadPanel } from './components/ThreadPanel';
 import { OrganizationDialog, type OrganizationDialogState } from './components/OrganizationDialog';
+import type { MessageMentionOption } from './components/MessageContent';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -83,6 +84,7 @@ export function ChatPage() {
   const [workspaceMembers, setWorkspaceMembers] = useState<RemoteWorkspaceMember[]>([]);
   const [teamMembers, setTeamMembers] = useState<RemoteWorkspaceMember[]>([]);
   const [channelMembers, setChannelMembers] = useState<RemoteWorkspaceMember[]>([]);
+  const [channelMentionMembers, setChannelMentionMembers] = useState<RemoteWorkspaceMember[]>([]);
   const [organizationDialog, setOrganizationDialog] = useState<OrganizationDialogState | null>(
     null,
   );
@@ -229,6 +231,27 @@ export function ChatPage() {
   const active = conversations.find((conversation) => conversation.id === activeId);
   const activeMessages = messageMap[activeId] ?? [];
   const isChannel = active?.kind === 'CHANNEL';
+  const mentionOptions = useMemo<MessageMentionOption[]>(() => {
+    const people =
+      isChannel && token
+        ? channelMentionMembers
+        : (active?.members ?? []).map((person) => ({
+            id: person.id,
+            username: person.username,
+            displayName: person.name,
+          }));
+    const options: MessageMentionOption[] = people
+      .filter((person) => person.id !== me.id && person.username)
+      .map((person) => ({
+        username: person.username!,
+        displayName: person.displayName,
+        type: 'USER' as const,
+      }));
+    if (isChannel && active) {
+      options.unshift({ username: 'canal', displayName: active.name, type: 'CHANNEL' as const });
+    }
+    return options;
+  }, [active, channelMentionMembers, isChannel, me.id, token]);
   const visibleDms = useMemo(
     () =>
       directConversations.filter((conversation) =>
@@ -239,6 +262,25 @@ export function ChatPage() {
   const workspaceRole: WorkspaceRole = workspace?.role ?? 'MEMBER';
   const workspaceName =
     workspace?.name ?? workspaces.find((item) => item.id === workspaceId)?.name ?? 'Rocket';
+
+  useEffect(() => {
+    if (!active || active.kind !== 'CHANNEL' || !token) {
+      setChannelMentionMembers([]);
+      return;
+    }
+    let current = true;
+    setChannelMentionMembers([]);
+    void getChannelMembers(token, active.id)
+      .then((members) => {
+        if (current) setChannelMentionMembers(members);
+      })
+      .catch(() => {
+        if (current) setChannelMentionMembers([]);
+      });
+    return () => {
+      current = false;
+    };
+  }, [active?.id, active?.kind, token]);
 
   useEffect(() => {
     if (routeId && conversations.some((conversation) => conversation.id === routeId)) {
@@ -1025,6 +1067,7 @@ export function ChatPage() {
                 onToggleReaction={handleToggleReaction}
                 onEditMessage={handleEditMessage}
                 onDeleteMessage={handleDeleteMessage}
+                mentionOptions={mentionOptions}
                 onOpenThread={(message) => {
                   setThreadRoot(message);
                   setShowDetails(false);
@@ -1043,6 +1086,7 @@ export function ChatPage() {
                     `${active.kind === 'CHANNEL' ? 'CHANNEL' : 'CONVERSATION'}:${active.id}`
                   ] ?? []
                 ).map(({ displayName }) => displayName)}
+                mentionOptions={mentionOptions}
               />
             </section>
             {threadRoot ? (
@@ -1058,6 +1102,9 @@ export function ChatPage() {
                 onEditMessage={handleEditThreadMessage}
                 onDeleteMessage={handleDeleteThreadMessage}
                 onToggleReaction={handleToggleThreadReaction}
+                mentionOptions={mentionOptions}
+                activeName={active.name}
+                isChannel={isChannel}
               />
             ) : (
               <ConversationDetails

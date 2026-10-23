@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { MessageCircle, Plus, Send, Smile, X } from 'lucide-react';
+import { Plus, Smile, X } from 'lucide-react';
 import { Avatar } from '../../../components/ui/Avatar';
 import type { Message } from '../../../types';
+import { MessageContent, type MessageMentionOption } from './MessageContent';
+import { MessageComposer } from './MessageComposer';
 
 export function ThreadPanel({
   root,
@@ -15,6 +17,9 @@ export function ThreadPanel({
   onEditMessage,
   onDeleteMessage,
   onToggleReaction,
+  mentionOptions,
+  activeName,
+  isChannel,
 }: {
   root: Message;
   replies: Message[];
@@ -27,6 +32,9 @@ export function ThreadPanel({
   onEditMessage: (id: string, text: string) => Promise<boolean>;
   onDeleteMessage: (id: string) => Promise<void>;
   onToggleReaction: (id: string, emoji: string, active: boolean) => Promise<void>;
+  mentionOptions: MessageMentionOption[];
+  activeName: string;
+  isChannel: boolean;
 }) {
   const [text, setText] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -60,9 +68,11 @@ export function ThreadPanel({
         <Avatar person={root.author} size="small" />
         <div>
           <strong>{root.author.name}</strong>
-          <p className={root.deleted ? 'message-deleted' : ''}>
-            {root.deleted ? 'Esta mensagem foi excluída.' : root.text}
-          </p>
+          {root.deleted ? (
+            <p className="message-deleted">Esta mensagem foi excluída.</p>
+          ) : (
+            <MessageContent text={root.text} mentionOptions={mentionOptions} />
+          )}
         </div>
       </div>
       <div className="thread-replies" aria-live="polite" aria-busy={isLoading}>
@@ -111,10 +121,10 @@ export function ThreadPanel({
                       </button>
                     </div>
                   </div>
+                ) : reply.deleted ? (
+                  <p className="message-deleted">Esta resposta foi excluída.</p>
                 ) : (
-                  <p className={reply.deleted ? 'message-deleted' : ''}>
-                    {reply.deleted ? 'Esta resposta foi excluída.' : reply.text}
-                  </p>
+                  <MessageContent text={reply.text} mentionOptions={mentionOptions} />
                 )}
                 {!reply.deleted && (
                   <div className="reaction-row" role="group" aria-label="Reações da resposta">
@@ -188,24 +198,18 @@ export function ThreadPanel({
         )}
         <div ref={endRef} />
       </div>
-      <div className="thread-composer">
-        <textarea
-          aria-label="Responder no tópico"
-          placeholder="Escreva uma resposta"
-          value={text}
-          rows={2}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault();
-              void submit();
-            }
-          }}
-        />
-        <button type="button" aria-label="Enviar resposta" disabled={!text.trim()} onClick={submit}>
-          {text.trim() ? <Send size={16} /> : <MessageCircle size={16} />}
-        </button>
-      </div>
+      <MessageComposer
+        variant="thread"
+        activeName={activeName}
+        isChannel={isChannel}
+        text={text}
+        setText={setText}
+        onSend={submit}
+        onToast={() => undefined}
+        onTyping={() => undefined}
+        typingNames={[]}
+        mentionOptions={mentionOptions}
+      />
     </aside>
   );
 }

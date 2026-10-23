@@ -2,6 +2,7 @@ import type { Conversation, Message, Person } from './types';
 
 export const me: Person = {
   id: 'demo-user',
+  username: 'alex.nogueira',
   name: 'Alex Nogueira',
   initials: 'AN',
   status: 'online',
@@ -12,6 +13,7 @@ export const people: Person[] = [
   me,
   {
     id: 'ana',
+    username: 'ana.souza',
     name: 'Ana Souza',
     initials: 'AS',
     status: 'online',
@@ -19,6 +21,7 @@ export const people: Person[] = [
   },
   {
     id: 'marcos',
+    username: 'marcos.ribeiro',
     name: 'Marcos Ribeiro',
     initials: 'MR',
     status: 'away',
@@ -26,6 +29,7 @@ export const people: Person[] = [
   },
   {
     id: 'bruna',
+    username: 'bruna.costa',
     name: 'Bruna Costa',
     initials: 'BC',
     status: 'offline',
@@ -33,6 +37,7 @@ export const people: Person[] = [
   },
   {
     id: 'luiz',
+    username: 'luiz.fernando',
     name: 'Luiz Fernando',
     initials: 'LF',
     status: 'online',

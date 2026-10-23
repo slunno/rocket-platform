@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 're
 import { Hash, MessageCircle, MoreHorizontal, Plus, Smile } from 'lucide-react';
 import { Avatar } from '../../../components/ui/Avatar';
 import type { Conversation, Message, Person } from '../../../types';
+import { MessageContent, type MessageMentionOption } from './MessageContent';
 
 type MessageGroup = { date: string; messages: Message[] };
 
@@ -20,6 +21,7 @@ export function MessageFeed({
   onEditMessage,
   onDeleteMessage,
   onOpenThread,
+  mentionOptions,
 }: {
   active: Conversation;
   isChannel: boolean;
@@ -35,6 +37,7 @@ export function MessageFeed({
   onEditMessage: (messageId: string, text: string) => Promise<boolean>;
   onDeleteMessage: (messageId: string) => Promise<void>;
   onOpenThread: (message: Message) => void;
+  mentionOptions: MessageMentionOption[];
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isLoadingRef = useRef(false);
@@ -153,10 +156,10 @@ export function MessageFeed({
                           </button>
                         </div>
                       </div>
+                    ) : message.deleted ? (
+                      <p className="message-text message-deleted">Esta mensagem foi excluída.</p>
                     ) : (
-                      <p className={`message-text ${message.deleted ? 'message-deleted' : ''}`}>
-                        {message.deleted ? 'Esta mensagem foi excluída.' : message.text}
-                      </p>
+                      <MessageContent text={message.text} mentionOptions={mentionOptions} />
                     )}
                     {!message.deleted && message.reactions?.length ? (
                       <div className="reaction-row" role="group" aria-label="Reações">
