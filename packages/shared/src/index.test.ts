@@ -10,6 +10,7 @@ import {
   channelPreferenceInputSchema,
   memberInputSchema,
   fileListQuerySchema,
+  globalSearchQuerySchema,
   profileUpdateInputSchema,
   registerInputSchema,
   teamCreateInputSchema,
@@ -63,6 +64,32 @@ describe('contratos compartilhados', () => {
       limit: 50,
     });
     expect(fileListQuerySchema.safeParse({ sortBy: 'unknown' }).success).toBe(false);
+  });
+
+  it('normaliza e valida filtros da busca global', () => {
+    expect(
+      globalSearchQuerySchema.parse({ q: '  planejamento  ', workspaceId: 'space-1' }),
+    ).toMatchObject({
+      q: 'planejamento',
+      workspaceId: 'space-1',
+      type: 'all',
+      hasAttachment: 'any',
+      limit: 5,
+    });
+    expect(
+      globalSearchQuerySchema.safeParse({
+        q: 'ata',
+        workspaceId: 'space-1',
+        after: '2026-10-24T00:00:00.000Z',
+        before: '2026-10-23T00:00:00.000Z',
+      }).success,
+    ).toBe(false);
+    expect(globalSearchQuerySchema.safeParse({ q: 'x', workspaceId: 'space-1' }).success).toBe(
+      false,
+    );
+    expect(
+      globalSearchQuerySchema.safeParse({ q: 'agenda', workspaceId: 'space-1', limit: 11 }).success,
+    ).toBe(false);
   });
 
   it('valida conteúdo de edição e reações', () => {

@@ -1872,7 +1872,15 @@ button.conversation-person-option {
   background: var(--overlay);
 }
 
-.search-modal,
+.search-modal {
+  width: min(760px, calc(100vw - 30px));
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-base);
+  box-shadow: var(--shadow);
+}
+
 .dialog {
   width: min(570px, calc(100vw - 30px));
   overflow: hidden;
@@ -1880,6 +1888,38 @@ button.conversation-person-option {
   border-radius: 12px;
   background: var(--surface-base);
   box-shadow: var(--shadow);
+}
+
+.search-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-1);
+}
+
+.search-filters label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.search-filters select,
+.search-filters input {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  background: var(--surface-base);
+  font: inherit;
+  font-size: 10px;
 }
 
 .search-modal-input {
@@ -1952,6 +1992,44 @@ button.conversation-person-option {
 
 .search-result span:nth-child(2) {
   flex: 1;
+}
+
+.search-result-detail > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 5px 0;
+}
+
+.search-result-detail strong,
+.search-result-detail small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-result-detail strong {
+  color: var(--text-primary);
+  font-size: 11px;
+}
+
+.search-result-detail small,
+.search-result > span > small {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.search-result-detail mark {
+  border-radius: 2px;
+  color: var(--text-primary);
+  background: var(--surface-2);
+}
+
+.search-result-detail {
+  min-height: 62px;
+  height: auto;
 }
 
 .search-hints {
@@ -2777,6 +2855,10 @@ button.conversation-person-option {
 }
 
 @media (max-width: 600px) {
+  .search-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .app-frame {
     min-height: 480px;
     flex-direction: column-reverse;

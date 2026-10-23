@@ -243,6 +243,28 @@ export const fileListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
+export const globalSearchQuerySchema = z
+  .object({
+    q: z.string().trim().min(2).max(200),
+    workspaceId: z.string().trim().min(1).max(128),
+    type: z.enum(['all', 'messages', 'people', 'channels', 'files']).default('all'),
+    from: z.string().trim().min(1).max(128).optional(),
+    in: z.string().trim().min(1).max(128).optional(),
+    after: z.coerce.date().optional(),
+    before: z.coerce.date().optional(),
+    hasAttachment: z.enum(['any', 'yes', 'no']).default('any'),
+    limit: z.coerce.number().int().min(1).max(10).default(5),
+  })
+  .superRefine(({ after, before }, context) => {
+    if (after && before && after > before) {
+      context.addIssue({
+        code: 'custom',
+        path: ['after'],
+        message: 'A data inicial deve ser anterior à data final.',
+      });
+    }
+  });
+
 export const attachmentDownloadQuerySchema = z.object({
   disposition: z.enum(['inline', 'attachment']).default('attachment'),
 });
@@ -258,6 +280,7 @@ export type RegisterInput = z.infer<typeof registerInputSchema>;
 export type LoginInput = z.infer<typeof loginInputSchema>;
 export type PaginationQuery = z.infer<typeof paginationQuerySchema>;
 export type FileListQuery = z.infer<typeof fileListQuerySchema>;
+export type GlobalSearchQuery = z.infer<typeof globalSearchQuerySchema>;
 export type AttachmentDownloadQuery = z.infer<typeof attachmentDownloadQuerySchema>;
 export type ProfileUpdateInput = z.infer<typeof profileUpdateInputSchema>;
 export type WorkspaceCreateInput = z.infer<typeof workspaceCreateInputSchema>;

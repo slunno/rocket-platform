@@ -4,7 +4,7 @@ Plataforma de comunicação corporativa da AKR Brands, em português do Brasil. 
 
 ## Estado do projeto
 
-Os **Blocos 0 a 3 e 6** estão concluídos. Os **Blocos 4 e 5** têm implementação e CI concluídos, mas ainda aguardam conferência visual entre duas contas pelo navegador integrado. No **Bloco 7 — Presença, atividade e notificações**, implementação, migração e testes integrados passaram no CI #44 e foram publicados em `main`; a conferência manual da tela segue bloqueada pela política do navegador. O próximo bloco é o **8 — Busca**. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para critérios, status e pendências.
+Os **Blocos 0 a 3 e 6** estão concluídos. Os **Blocos 4 e 5** têm implementação e CI concluídos, mas ainda aguardam conferência visual entre duas contas pelo navegador integrado. No **Bloco 7 — Presença, atividade e notificações**, implementação, migração e testes integrados passaram no CI #44 e foram publicados em `main`; a conferência manual da tela segue bloqueada pela política do navegador. O **Bloco 8 — Busca** está em implementação: busca full-text por mensagens, pessoas, canais e arquivos, filtros e isolamento de acesso foram adicionados e aguardam validação de integração no CI. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para critérios, status e pendências.
 
 ## Status dos blocos
 
@@ -18,7 +18,7 @@ Os **Blocos 0 a 3 e 6** estão concluídos. Os **Blocos 4 e 5** têm implementa�
 | 5 — Chats 1:1 e em grupo                     | 🚧 Em andamento |
 | 6 — Arquivos e anexos                        | ✅ Concluído    |
 | 7 — Presença, atividade e notificações       | 🚧 Em andamento |
-| 8 — Busca                                    | ⏳ Pendente     |
+| 8 — Busca                                    | 🚧 Em andamento |
 | 9 — Calendário e reuniões                    | ⏳ Pendente     |
 | 10 — Abas de canal e produtividade           | ⏳ Pendente     |
 | 11 — Administração, segurança e conformidade | ⏳ Pendente     |
@@ -30,6 +30,7 @@ Os **Blocos 0 a 3 e 6** estão concluídos. Os **Blocos 4 e 5** têm implementa�
 - Componentes separados por layout, conversa e elementos básicos de interface; tema e largura da barra lateral persistidos no navegador.
 - Atividade lista menções, respostas, reações e aceite de convites, com filtros, leitura individual/em lote, alertas no app e notificações do navegador ativadas por escolha da pessoa. Calendário e Chamadas ainda têm estados de demonstração. Arquivos têm upload para MinIO/S3, prévias, download autorizado, busca e ordenação, incluindo arquivos de canal.
 - API Express com cadastro e login por e-mail, senhas Argon2id, sessões persistentes com refresh rotativo, logout local/global, recuperação de senha, perfil e status manual; demonstração restrita à configuração de desenvolvimento. Também oferece espaços, equipes, canais públicos/privados, papéis, membros e convites por e-mail. Mensagens têm cursor, envio idempotente, edição, exclusão, reações, tópicos, menções restritas aos participantes, indicador de digitação e marcadores de leitura sincronizados por Socket.IO. DMs são únicas por par; grupos oferecem foto HTTPS, gestão de participantes e preferências de silenciar/fixar. Anexos têm limite de 25 MiB e são verificados por conteúdo antes de ficarem disponíveis.
+- Busca global do bloco 8 em validação: PostgreSQL full-text encontra mensagens, pessoas, canais e arquivos no workspace ativo; filtros de autor, canal/conversa, datas e anexo; trechos destacados renderizados como texto seguro e resultados limitados às conversas acessíveis à pessoa.
 - Modelo Prisma para usuários, espaços, equipes, canais, conversas diretas/em grupo, mensagens, atividade/notificações, anexos, reações, membros e convites; migrações versionadas preservam as mensagens dos canais existentes.
 - Dados de demonstração fictícios em contexto de moda e indústria: Comercial, Produto e Estilo, Produção, Marketing, Logística e TI.
 - Pacote `@rocket/shared` com schemas Zod, tipos inferidos e nomes de eventos Socket.IO.

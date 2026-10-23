@@ -1706,6 +1706,9 @@ export function ChatPage() {
         open={showSearch}
         query={query}
         setQuery={setQuery}
+        token={token}
+        workspaceId={workspaceId}
+        members={workspaceMembers}
         conversations={conversations}
         getOtherPerson={(conversation) =>
           conversation.members.find((person) => person.id !== me.id) ??
@@ -1713,6 +1716,7 @@ export function ChatPage() {
           me
         }
         onOpenConversation={openConversation}
+        onStartDirect={startDirectConversation}
         onClose={() => {
           setShowSearch(false);
           setQuery('');

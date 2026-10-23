@@ -456,6 +456,71 @@ export type RemoteActivityItem = {
   channelName: string | null;
 };
 
+export type RemoteSearchTarget =
+  | {
+      type: 'channel';
+      id: string;
+      name: string | null;
+      teamId: string | null;
+      teamName: string | null;
+    }
+  | { type: 'conversation'; id: string; name: string | null };
+
+export type RemoteGlobalSearchResults = {
+  messages: {
+    id: string;
+    snippet: string;
+    createdAt: string;
+    author: { id: string; displayName: string; avatarUrl: string | null };
+    target: RemoteSearchTarget;
+    hasAttachment: boolean;
+  }[];
+  people: {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
+    status: AuthUser['status'];
+  }[];
+  channels: {
+    id: string;
+    name: string;
+    teamId: string;
+    teamName: string;
+    visibility: ChannelVisibility;
+  }[];
+  files: {
+    id: string;
+    fileName: string;
+    mimeType: string;
+    sizeBytes: number;
+    createdAt: string;
+    snippet: string;
+    authorName: string;
+    target: RemoteSearchTarget;
+  }[];
+};
+
+export type GlobalSearchFilters = {
+  q: string;
+  workspaceId: string;
+  type?: 'all' | 'messages' | 'people' | 'channels' | 'files';
+  from?: string;
+  in?: string;
+  after?: string;
+  before?: string;
+  hasAttachment?: 'any' | 'yes' | 'no';
+  limit?: number;
+};
+
+export const globalSearch = (token: string, filters: GlobalSearchFilters, signal?: AbortSignal) => {
+  const query = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  });
+  return request<RemoteGlobalSearchResults>(`/api/search?${query.toString()}`, token, { signal });
+};
+
 export const getActivity = (
   token: string,
   filter: 'all' | 'unread' | 'mentions' = 'all',

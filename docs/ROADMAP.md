@@ -13,8 +13,8 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 | 4 — Mensageria completa                      | 🚧 Em andamento | Cursor, idempotência, edição, exclusão, threads, reações, menções, marcadores de leitura, contadores de não lidas e ressincronização; validação multiusuário pendente. |
 | 5 — Chats 1:1 e em grupo                     | 🚧 Em andamento | Busca de pessoas, DMs idempotentes, grupos com foto HTTPS, participantes, silenciar e fixar; sem duplicação de conversas.                                              |
 | 6 — Arquivos e anexos                        | ✅ Concluído    | MinIO e StorageProvider com upload, preview e download autorizados, respeitando limites e tipos permitidos; testes integrados e CI completos passaram.                 |
-| 7 — Presença, Atividade e Notificações       | 🚧 Em andamento | Adapter e presença validados no CI; feed, filtros, preferências, notificações no navegador e entrega BullMQ implementados no checkout, aguardando CI.                  |
-| 8 — Busca                                    | ⏳ Pendente     | Busca PostgreSQL por mensagens, pessoas, canais e arquivos; resultados obedecem permissões.                                                                            |
+| 7 — Presença, Atividade e Notificações       | 🚧 Em andamento | Implementação e integração PostgreSQL/Redis passaram no CI #44; falta revisão visual manual, bloqueada pela política do navegador integrado para URLs locais.          |
+| 8 — Busca                                    | 🚧 Em andamento | Migração, API, filtros e UI implementados no checkout; testes de isolamento adicionados. A validação de PostgreSQL e Redis aguarda CI.                                 |
 | 9 — Calendário e Reuniões                    | ⏳ Pendente     | Calendário, eventos e reuniões LiveKit com autorização, áudio/vídeo e compartilhamento entre participantes.                                                            |
 | 10 — Abas de canal e produtividade           | ⏳ Pendente     | Abas configuráveis de publicações, arquivos, notas e tarefas, com itens salvos/pinados persistidos.                                                                    |
 | 11 — Administração, segurança e conformidade | ⏳ Pendente     | Administração, auditoria, retenção, LGPD e checklist sem vulnerabilidades altas abertas.                                                                               |
@@ -166,7 +166,7 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 - **Pendências anteriores:** os Blocos 4 e 5 seguem com a validação visual multiusuário pendente por falta de um ambiente web/API com duas contas; essa conferência permanece registrada como desvio de ordem.
 - **Próxima etapa:** iniciar o Bloco 7 com presença Redis por heartbeat/TTL e adapter Redis para Socket.IO; manter a conferência visual multiusuário dos Blocos 4 e 5 registrada para quando houver um ambiente com duas contas.
 
-### 2026-10-23 — Bloco 7 em andamento
+### 2026-10-23 — Bloco 7 validado no CI; Bloco 8 iniciado
 
 - **Status:** 🚧 presença, feed e notificações implementados e publicados em `main`; o CI #44 validou migração e integração. Resta a conferência visual manual, bloqueada pela política de segurança do navegador integrado ao tentar abrir a URL local.
 - **Entregue e validado anteriormente:** adapter Redis para Socket.IO; heartbeat autenticado a cada 20 segundos com TTL de 60 segundos, controle de múltiplos sockets por usuário, transições online/offline e snapshot inicial limitado a conversas, canais privados e equipes com canais públicos autorizados.
@@ -179,7 +179,12 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 - **CI #44:** [passou](https://github.com/slunno/rocket-platform/actions/runs/40012567476), incluindo lint, formatação, typecheck, migração PostgreSQL, testes de integração com Redis e notificações, build, seed e smoke test.
 - **Pendência visual:** a política de segurança do navegador integrado bloqueou `http://127.0.0.1:5181/chat/produto`; sem contornar esse bloqueio, a revisão manual de UI permanece pendente.
 - **Desvio de ordem:** começar o Bloco 8 com apenas essa conferência manual do Bloco 7 pendente; a busca não depende dela e o bloqueio do navegador também mantém a validação visual dos Blocos 4 e 5 em aberto.
-- **Próxima etapa:** iniciar o Bloco 8 — Busca, com índice full-text PostgreSQL, filtros e resultados agrupados sem expor canais privados.
+- **Bloco 8 iniciado:** busca global PostgreSQL para mensagens, pessoas, canais e arquivos, com índices GIN, filtros, snippets e autorização aplicada antes de retornar resultados.
+- **Bloco 8 implementado no checkout:** migração cria índices GIN em mensagens, pessoas, canais e nomes de arquivo com configuração portuguesa; schema compartilhado valida query, workspace, tipo, autor, destino, datas, anexos e limite; API usa consultas parametrizadas, escopo obrigatório do workspace e associação autorizada a cada conversa/canal. Convidados não recebem dados do diretório. Resultados de mensagem/arquivo incluem snippets com marcadores que a interface transforma em nós React de texto, sem HTML injetado.
+- **Interface:** `Ctrl/Cmd + K` busca mensagens, pessoas, canais e arquivos; mostra resultados em grupos, filtro por tipo/autor/local/período/anexo, estado de carregamento/erro, navegação de teclado e abertura do destino.
+- **Validação local:** `npm run typecheck`, `npm run build`, `npm run lint`, `npm run format:check`, `git diff --check`, `npm run test` (57 aprovados; 7 ignorados por falta de PostgreSQL/Redis local) e `npm audit --audit-level=moderate` passaram; zero vulnerabilidades.
+- **Validação pendente:** o teste integrado recém-adicionado verifica isolamento de workspace e canal privado, filtros, arquivos e diretório; precisa passar no CI com PostgreSQL e Redis antes de marcar o bloco como concluído.
+- **Próxima etapa:** publicar a implementação e acompanhar o CI; corrigir falhas de migração/integração antes de encerrar o Bloco 8.
 
 ### 2026-10-22 — Bloco 0 concluído
 

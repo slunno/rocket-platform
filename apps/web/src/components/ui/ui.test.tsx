@@ -311,7 +311,9 @@ describe('componentes de interface', () => {
       />,
     );
 
-    const input = screen.getByRole('textbox', { name: 'Buscar canais e pessoas' });
+    const input = screen.getByRole('textbox', {
+      name: 'Buscar mensagens, pessoas, canais e arquivos',
+    });
     await user.click(input);
     await user.keyboard('{ArrowDown}');
     const result = screen.getByRole('button', { name: 'produto' });
@@ -321,5 +323,64 @@ describe('componentes de interface', () => {
     expect(onOpenConversation).toHaveBeenCalledWith(conversations[0]);
     expect(setQuery).toHaveBeenCalledWith('');
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('carrega resultados globais e renderiza os destaques como texto seguro', async () => {
+    const user = userEvent.setup();
+    const onOpenConversation = vi.fn();
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          messages: [
+            {
+              id: 'message-search-1',
+              snippet:
+                'O __ROCKET_MATCH_START_8F31__planejamento__ROCKET_MATCH_END_8F31__ foi aprovado.',
+              createdAt: '2026-10-23T10:00:00.000Z',
+              author: { id: 'person-2', displayName: 'Ana', avatarUrl: null },
+              target: {
+                type: 'channel',
+                id: conversations[0].id,
+                name: conversations[0].name,
+                teamId: conversations[0].teamId,
+                teamName: 'Produto',
+              },
+              hasAttachment: false,
+            },
+          ],
+          people: [],
+          channels: [],
+          files: [],
+        }),
+        { headers: { 'Content-Type': 'application/json' }, status: 200 },
+      ),
+    );
+
+    const { container } = render(
+      <MessageSearchDialog
+        open
+        query="planejamento"
+        setQuery={vi.fn()}
+        token="access-token"
+        workspaceId="workspace-1"
+        conversations={conversations}
+        getOtherPerson={(conversation) =>
+          conversation.members.find((person) => person.id !== me.id) ?? me
+        }
+        onOpenConversation={onOpenConversation}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText('planejamento')).toBeInTheDocument();
+    expect(container.querySelector('mark')).toHaveTextContent('planejamento');
+    expect(container.querySelector('[dangerouslySetInnerHTML]')).toBeNull();
+    await user.click(
+      screen.getByRole('textbox', {
+        name: 'Buscar mensagens, pessoas, canais e arquivos',
+      }),
+    );
+    await user.keyboard('{Enter}');
+    expect(onOpenConversation).toHaveBeenCalledWith(conversations[0]);
   });
 });
