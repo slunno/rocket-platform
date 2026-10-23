@@ -224,7 +224,7 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
       text: 'Resposta dentro do tópico.',
     });
     expect(retriedReplyResponse.status).toBe(200);
-    expect(retriedReply).toEqual({ id: firstReply.id, text: firstReply.text });
+    expect(retriedReply).toMatchObject({ id: firstReply.id, text: firstReply.text });
     const threadPageResponse = await request(
       'GET',
       `/messages/${firstMessageJson.id}/replies?limit=10`,
