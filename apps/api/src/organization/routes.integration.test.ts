@@ -967,7 +967,11 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
       { favorite: true, hidden: true },
     );
     expect(favorite.status).toBe(200);
-    expect(await favorite.json()).toEqual({ favorite: true, hidden: true });
+    expect(await favorite.json()).toMatchObject({
+      favorite: true,
+      hidden: true,
+      notificationLevel: 'ALL',
+    });
 
     const guestInvite = await createAndAcceptInvite(
       owner.accessToken,
