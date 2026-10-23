@@ -8,6 +8,8 @@ export function MessageComposer({
   setText,
   onSend,
   onToast,
+  onTyping,
+  typingNames,
 }: {
   activeName: string;
   isChannel: boolean;
@@ -15,14 +17,25 @@ export function MessageComposer({
   setText: Dispatch<SetStateAction<string>>;
   onSend: () => Promise<void>;
   onToast: (message: string) => void;
+  onTyping: (isTyping: boolean) => void;
+  typingNames: string[];
 }) {
+  const typingLabel =
+    typingNames.length === 1
+      ? `${typingNames[0]} está digitando…`
+      : typingNames.length > 1
+        ? `${typingNames.slice(0, -1).join(', ')} e ${typingNames.at(-1)} estão digitando…`
+        : '';
   return (
     <div className="composer-wrap">
       <div className="composer">
         <textarea
           rows={1}
           value={text}
-          onChange={(event) => setText(event.target.value)}
+          onChange={(event) => {
+            setText(event.target.value);
+            onTyping(Boolean(event.target.value.trim()));
+          }}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
               event.preventDefault();
@@ -86,6 +99,11 @@ export function MessageComposer({
         Compartilhe uma ideia, uma atualização ou só diga oi.{' '}
         <span>Shift + Enter para pular linha</span>
       </p>
+      {typingLabel && (
+        <p className="typing-indicator" role="status" aria-live="polite">
+          {typingLabel}
+        </p>
+      )}
     </div>
   );
 }

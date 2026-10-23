@@ -63,3 +63,7 @@ As rotas de mensagens recebem `limit` (1–100, padrão 50) e um `cursor` opcion
 | `DELETE /messages/:messageId`                  | Define `deletedAt` sem apagar o registro e notifica a sala em tempo real. | Autoria da mensagem                       |
 | `PUT /messages/:messageId/reactions`           | Adiciona uma reação idempotente; resposta lista quem reagiu.              | Participante autorizado da conversa/canal |
 | `DELETE /messages/:messageId/reactions/:emoji` | Remove a reação da pessoa autenticada.                                    | Participante autorizado da conversa/canal |
+
+## Socket.IO
+
+O cliente envia `typing` com `{ "targetType": "CHANNEL" | "CONVERSATION", "targetId": "...", "isTyping": true | false }`. A API só encaminha o evento para a sala que o socket já está autorizado a acessar; o servidor obtém o nome da pessoa autenticada e o envia aos outros participantes.

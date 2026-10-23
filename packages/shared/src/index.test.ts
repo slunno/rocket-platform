@@ -5,6 +5,7 @@ import {
   messageUpdateInputSchema,
   paginationQuerySchema,
   reactionInputSchema,
+  typingInputSchema,
   channelCreateInputSchema,
   channelPreferenceInputSchema,
   memberInputSchema,
@@ -43,6 +44,16 @@ describe('contratos compartilhados', () => {
     expect(messageUpdateInputSchema.safeParse({ text: ' ' }).success).toBe(false);
     expect(reactionInputSchema.parse({ emoji: ' 👍 ' }).emoji).toBe('👍');
     expect(reactionInputSchema.safeParse({ emoji: '' }).success).toBe(false);
+  });
+
+  it('valida o alvo e o estado de digitação do socket', () => {
+    expect(
+      typingInputSchema.parse({ targetType: 'CHANNEL', targetId: 'channel-1', isTyping: true }),
+    ).toMatchObject({ targetType: 'CHANNEL', isTyping: true });
+    expect(
+      typingInputSchema.safeParse({ targetType: 'WORKSPACE', targetId: 'w-1', isTyping: true })
+        .success,
+    ).toBe(false);
   });
 
   it('valida os campos básicos de perfil retornados pela API', () => {

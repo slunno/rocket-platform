@@ -7,6 +7,7 @@ import { validateAccessToken } from './auth.js';
 import { prisma } from './lib/prisma.js';
 import { createApiRouter } from './routes.js';
 import { getChannelContext } from './organization/routes.js';
+import { typingInputSchema } from '@rocket/shared';
 
 const app = express();
 const server = http.createServer(app);
@@ -89,7 +90,42 @@ io.on('connection', async (socket) => {
     if (typeof channelId === 'string') await socket.leave(`channel:${channelId}`);
   });
 
-  const [conversationMemberships, channelMemberships] = await Promise.all([
+  socket.on('typing', async (payload: unknown, acknowledge?: (result: { ok: boolean }) => void) => {
+    const parsed = typingInputSchema.safeParse(payload);
+    if (!parsed.success) {
+      acknowledge?.({ ok: false });
+      return;
+    }
+    const { targetType, targetId, isTyping } = parsed.data;
+    const room = `${targetType === 'CHANNEL' ? 'channel' : 'conversation'}:${targetId}`;
+    if (!socket.rooms.has(room)) {
+      acknowledge?.({ ok: false });
+      return;
+    }
+    try {
+      const displayName = socket.data.displayName as string | undefined;
+      if (!displayName) {
+        acknowledge?.({ ok: false });
+        return;
+      }
+      socket.to(room).emit('typing', {
+        targetType,
+        targetId,
+        userId: socket.data.userId,
+        displayName,
+        isTyping,
+      });
+      acknowledge?.({ ok: true });
+    } catch {
+      acknowledge?.({ ok: false });
+    }
+  });
+
+  const [person, conversationMemberships, channelMemberships] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: socket.data.userId },
+      select: { displayName: true },
+    }),
     prisma.conversationMember.findMany({
       where: { userId: socket.data.userId },
       select: { conversationId: true },
@@ -106,6 +142,11 @@ io.on('connection', async (socket) => {
       select: { id: true },
     }),
   ]);
+  if (!person) {
+    socket.disconnect(true);
+    return;
+  }
+  socket.data.displayName = person.displayName;
   conversationMemberships.forEach(({ conversationId }) =>
     socket.join(`conversation:${conversationId}`),
   );

@@ -93,6 +93,9 @@ export function ChatPage() {
   const [text, setText] = useState('');
   const [query, setQuery] = useState('');
   const [online, setOnline] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<
+    Record<string, { userId: string; displayName: string }[]>
+  >({});
   const [showDetails, setShowDetails] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -108,6 +111,12 @@ export function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const skipNextAutoScrollRef = useRef(false);
   const socketRef = useRef<Socket | null>(null);
+  const typingTimeoutRef = useRef<number | null>(null);
+  const typingTargetRef = useRef<{
+    targetType: 'CHANNEL' | 'CONVERSATION';
+    targetId: string;
+  } | null>(null);
+  const remoteTypingTimeoutsRef = useRef(new Map<string, number>());
   const latestTokenRef = useRef(token);
   const myIdRef = useRef(me.id);
   const resizeOrigin = useRef<{ x: number; width: number } | null>(null);
@@ -247,7 +256,55 @@ export function ChatPage() {
     });
     socketRef.current = socket;
     socket.on('connect', () => setOnline(true));
-    socket.on('disconnect', () => setOnline(false));
+    socket.on('disconnect', () => {
+      setOnline(false);
+      setTypingUsers({});
+      if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+      typingTargetRef.current = null;
+      for (const timeout of remoteTypingTimeoutsRef.current.values()) window.clearTimeout(timeout);
+      remoteTypingTimeoutsRef.current.clear();
+    });
+    socket.on(
+      'typing',
+      (event: {
+        targetType: 'CHANNEL' | 'CONVERSATION';
+        targetId: string;
+        userId: string;
+        displayName: string;
+        isTyping: boolean;
+      }) => {
+        const key = `${event.targetType}:${event.targetId}:${event.userId}`;
+        const targetKey = `${event.targetType}:${event.targetId}`;
+        const currentTimeout = remoteTypingTimeoutsRef.current.get(key);
+        if (currentTimeout) window.clearTimeout(currentTimeout);
+        setTypingUsers((current) => {
+          const users = current[targetKey] ?? [];
+          const nextUsers = event.isTyping
+            ? users.some(({ userId }) => userId === event.userId)
+              ? users
+              : [...users, { userId: event.userId, displayName: event.displayName }]
+            : users.filter(({ userId }) => userId !== event.userId);
+          return { ...current, [targetKey]: nextUsers };
+        });
+        if (event.isTyping) {
+          remoteTypingTimeoutsRef.current.set(
+            key,
+            window.setTimeout(() => {
+              setTypingUsers((current) => ({
+                ...current,
+                [targetKey]: (current[targetKey] ?? []).filter(
+                  ({ userId }) => userId !== event.userId,
+                ),
+              }));
+              remoteTypingTimeoutsRef.current.delete(key);
+            }, 3000),
+          );
+        } else {
+          remoteTypingTimeoutsRef.current.delete(key);
+        }
+      },
+    );
     socket.on('message:created', (message: Parameters<typeof mapRemoteMessage>[0]) => {
       const normalized = mapRemoteMessage(message, myIdRef.current);
       const parentId = message.conversationId ?? message.channelId ?? '';
@@ -293,6 +350,11 @@ export function ChatPage() {
     return () => {
       socket.disconnect();
       socketRef.current = null;
+      if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+      typingTargetRef.current = null;
+      for (const timeout of remoteTypingTimeoutsRef.current.values()) window.clearTimeout(timeout);
+      remoteTypingTimeoutsRef.current.clear();
     };
   }, [user?.id]);
 
@@ -407,6 +469,7 @@ export function ChatPage() {
   const handleSend = async () => {
     const cleanText = text.trim();
     if (!cleanText || !active) return;
+    handleTyping(false);
     setText('');
     const clientMessageId = crypto.randomUUID();
     const temporaryId = `local-${clientMessageId}`;
@@ -442,6 +505,35 @@ export function ChatPage() {
         showToast('Não foi possível enviar a mensagem. Confira sua conexão e tente novamente.');
       }
     }
+  };
+
+  const handleTyping = (isTyping: boolean) => {
+    const socket = socketRef.current;
+    const target = active
+      ? {
+          targetType: active.kind === 'CHANNEL' ? ('CHANNEL' as const) : ('CONVERSATION' as const),
+          targetId: active.id,
+        }
+      : null;
+    if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = null;
+    if (!socket?.connected || !target) {
+      typingTargetRef.current = null;
+      return;
+    }
+    if (isTyping) {
+      typingTargetRef.current = target;
+      socket.emit('typing', { ...target, isTyping: true });
+      typingTimeoutRef.current = window.setTimeout(() => {
+        socket.emit('typing', { ...target, isTyping: false });
+        typingTargetRef.current = null;
+        typingTimeoutRef.current = null;
+      }, 1800);
+      return;
+    }
+    const previousTarget = typingTargetRef.current ?? target;
+    socket.emit('typing', { ...previousTarget, isTyping: false });
+    typingTargetRef.current = null;
   };
 
   const handleEditMessage = async (messageId: string, nextText: string) => {
@@ -755,6 +847,12 @@ export function ChatPage() {
                 setText={setText}
                 onSend={handleSend}
                 onToast={showToast}
+                onTyping={handleTyping}
+                typingNames={(
+                  typingUsers[
+                    `${active.kind === 'CHANNEL' ? 'CHANNEL' : 'CONVERSATION'}:${active.id}`
+                  ] ?? []
+                ).map(({ displayName }) => displayName)}
               />
             </section>
             <ConversationDetails

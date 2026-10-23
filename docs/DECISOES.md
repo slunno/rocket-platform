@@ -79,3 +79,9 @@ Registros curtos de contexto, decisão e consequência.
 - **Contexto:** alterações precisam respeitar autoria e refletir nas outras sessões sem apagar o histórico de forma irreversível.
 - **Decisão:** somente quem criou a mensagem pode editar ou marcar como excluída; reações usam chave única por mensagem, pessoa e emoji; os eventos publicam a mensagem atualizada para os membros da sala autorizada.
 - **Consequência:** o texto excluído permanece no banco sob `deletedAt`, listas normais o ocultam e a interface mostra o estado de exclusão; reações podem ser removidas e incluem participantes para exibição.
+
+## 2026-10-23 — Indicador de digitação em salas autorizadas
+
+- **Contexto:** participantes precisam saber quando outra pessoa está escrevendo sem confiar em identidade ou sala informada pelo navegador.
+- **Decisão:** o socket valida o evento com schema compartilhado e só publica em uma sala que a conexão autenticada já integra; nome e ID vêm da sessão no servidor.
+- **Consequência:** o navegador envia estados de início e parada, encerra após inatividade e remove indicadores remotos depois de três segundos sem atualização.

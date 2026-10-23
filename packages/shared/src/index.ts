@@ -20,6 +20,19 @@ export const reactionInputSchema = z.object({
   emoji: z.string().trim().min(1).max(32),
 });
 
+export const typingInputSchema = z.discriminatedUnion('targetType', [
+  z.object({
+    targetType: z.literal('CHANNEL'),
+    targetId: z.string().min(1),
+    isTyping: z.boolean(),
+  }),
+  z.object({
+    targetType: z.literal('CONVERSATION'),
+    targetId: z.string().min(1),
+    isTyping: z.boolean(),
+  }),
+]);
+
 export const userSummarySchema = z.object({
   id: z.string(),
   username: z.string(),
@@ -137,6 +150,7 @@ export type ApiError = z.infer<typeof apiErrorSchema>;
 export type MessageInput = z.infer<typeof messageInputSchema>;
 export type MessageUpdateInput = z.infer<typeof messageUpdateInputSchema>;
 export type ReactionInput = z.infer<typeof reactionInputSchema>;
+export type TypingInput = z.infer<typeof typingInputSchema>;
 export type UserSummary = z.infer<typeof userSummarySchema>;
 export type RegisterInput = z.infer<typeof registerInputSchema>;
 export type LoginInput = z.infer<typeof loginInputSchema>;

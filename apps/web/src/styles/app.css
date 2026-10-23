@@ -1254,6 +1254,13 @@ kbd {
   float: right;
 }
 
+.typing-indicator {
+  min-height: 16px;
+  margin: 3px 4px 0;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
 .details-panel {
   z-index: 5;
   width: 285px;
