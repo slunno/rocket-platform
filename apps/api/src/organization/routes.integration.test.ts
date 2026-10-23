@@ -272,6 +272,14 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
     expect(channelFiles.items).toEqual([
       expect.objectContaining({ id: pendingAttachment.id, fileName: 'pedido.pdf' }),
     ]);
+    const channelFilesByMessageText = await request(
+      'GET',
+      `/channels/${publicChannel.id}/files?query=Documento`,
+      owner.accessToken,
+    );
+    expect(((await channelFilesByMessageText.json()) as { items: { id: string }[] }).items).toEqual(
+      [expect.objectContaining({ id: pendingAttachment.id })],
+    );
     const guestFilesResponse = await request('GET', '/files?query=pedido', guest.accessToken);
     expect(((await guestFilesResponse.json()) as { items: { id: string }[] }).items).toHaveLength(
       0,

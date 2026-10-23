@@ -1778,19 +1778,23 @@ export function createApiRouter(io: Server) {
       const { query, sortBy, limit } = parsedQuery.data;
       const where = {
         uploadedAt: { not: null },
-        ...(query ? { fileName: { contains: query, mode: 'insensitive' as const } } : {}),
         message: {
           channelId,
           deletedAt: null,
-          ...(query
-            ? {
-                OR: [
-                  { text: { contains: query, mode: 'insensitive' as const } },
-                  { author: { displayName: { contains: query, mode: 'insensitive' as const } } },
-                ],
-              }
-            : {}),
         },
+        ...(query
+          ? {
+              OR: [
+                { fileName: { contains: query, mode: 'insensitive' as const } },
+                { message: { text: { contains: query, mode: 'insensitive' as const } } },
+                {
+                  message: {
+                    author: { displayName: { contains: query, mode: 'insensitive' as const } },
+                  },
+                },
+              ],
+            }
+          : {}),
       };
       const orderBy =
         sortBy === 'name'
