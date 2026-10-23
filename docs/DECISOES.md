@@ -37,3 +37,9 @@ Registros curtos de contexto, decisão e consequência.
 - **Contexto:** organizações diferentes precisam adaptar a marca sem alterar o design system; os avatares do protótipo usavam cores aleatórias.
 - **Decisão:** configurar nome e logo da barra superior por `VITE_BRAND_NAME` e `VITE_BRAND_LOGO_URL`, e derivar o tom monocromático do avatar pelo identificador estável da pessoa.
 - **Consequência:** a identidade da barra pode ser personalizada por ambiente e a mesma pessoa mantém aparência previsível entre renderizações.
+
+## 2026-10-23 — Sessões e recuperação de senha
+
+- **Contexto:** a demonstração precisava evoluir para contas reais, sessões persistentes e recuperação sem expor credenciais ou tokens reutilizáveis.
+- **Decisão:** usar hashes Argon2id para senhas, access tokens HS256 de 15 minutos e refresh tokens opacos com rotação, hash SHA-256 no banco, família de sessão e revogação em caso de replay; cookies `HttpOnly`/`SameSite=Lax`; tokens de recuperação de uso único com expiração de 20 minutos; `MailProvider` com log em desenvolvimento e SMTP em produção.
+- **Consequência:** refresh e recuperação podem ser revogados no servidor, sockets são desconectados ao revogar sessões e produção precisa de segredo exclusivo e SMTP configurado. Tentativas de login usam chaves HMAC e bloqueio progressivo persistidos no PostgreSQL.

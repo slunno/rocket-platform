@@ -4,7 +4,7 @@ Plataforma de comunicação corporativa da AKR Brands, em português do Brasil. 
 
 ## Estado do projeto
 
-Os **Blocos 0 — Fundação e higiene** e **1 — Design system e shell da aplicação** estão concluídos. O próximo é o **Bloco 2 — Autenticação e perfil reais**. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para o plano completo, critérios de aceite, status e pendências.
+Os **Blocos 0 — Fundação e higiene**, **1 — Design system e shell da aplicação** e **2 — Autenticação e perfil reais** estão concluídos. O próximo é o **Bloco 3 — Organização, equipes e canais**. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para o plano completo, critérios de aceite, status e pendências.
 
 ## Status dos blocos
 
@@ -12,7 +12,7 @@ Os **Blocos 0 — Fundação e higiene** e **1 — Design system e shell da apli
 | -------------------------------------------- | ------------ |
 | 0 — Fundação e higiene                       | ✅ Concluído |
 | 1 — Design system e shell                    | ✅ Concluído |
-| 2 — Autenticação e perfil reais              | ⏳ Pendente  |
+| 2 — Autenticação e perfil reais              | ✅ Concluído |
 | 3 — Organização, equipes e canais            | ⏳ Pendente  |
 | 4 — Mensageria completa                      | ⏳ Pendente  |
 | 5 — Chats 1:1 e em grupo                     | ⏳ Pendente  |
@@ -29,7 +29,7 @@ Os **Blocos 0 — Fundação e higiene** e **1 — Design system e shell da apli
 - Interface React com shell responsivo, rotas, temas claro/escuro/alto contraste, tokens monocromáticos, busca rápida (`Ctrl/Cmd + K`), conversas, painel de detalhes, reações de demonstração e modo local com dados fictícios.
 - Componentes separados por layout, conversa e elementos básicos de interface; tema e largura da barra lateral persistidos no navegador.
 - Rotas com conteúdo de demonstração para Atividade, Calendário, Arquivos e Chamadas; os respectivos fluxos completos permanecem nos blocos futuros do roadmap.
-- API Express com sessão de demonstração para desenvolvimento, listagem de conversas e mensagens, envio de mensagens e eventos Socket.IO.
+- API Express com cadastro e login por e-mail, senhas Argon2id, sessões persistentes com refresh rotativo, logout local/global, recuperação de senha, perfil e status manual; demonstração restrita à configuração de desenvolvimento. Também oferece conversas, mensagens e eventos Socket.IO.
 - Modelo Prisma para usuários, espaços de trabalho, conversas, mensagens, anexos e reações, com migração inicial versionada.
 - Dados de demonstração fictícios em contexto de moda e indústria: Comercial, Produto e Estilo, Produção, Marketing, Logística e TI.
 - Pacote `@rocket/shared` com schemas Zod, tipos inferidos e nomes de eventos Socket.IO.
@@ -93,20 +93,28 @@ Para formatar os arquivos suportados, use `npm run format`. O fluxo do GitHub Ac
 
 ## Variáveis de ambiente
 
-| Variável              | Uso                                                            |
-| --------------------- | -------------------------------------------------------------- |
-| `POSTGRES_PASSWORD`   | Senha local do container PostgreSQL                            |
-| `DATABASE_URL`        | Conexão PostgreSQL usada pela API, Prisma e seed               |
-| `JWT_SECRET`          | Segredo dos tokens de demonstração; mínimo de 32 caracteres    |
-| `DEMO_AUTH_ENABLED`   | Habilita a sessão demo fora de produção                        |
-| `NODE_ENV`            | `development`, `test` ou `production`; padrão `development`    |
-| `API_PORT`            | Porta da API; padrão `4000`                                    |
-| `WEB_ORIGIN`          | Origem CORS permitida; padrão `http://localhost:5173`          |
-| `VITE_API_URL`        | URL da API consumida pelo Vite; padrão `http://localhost:4000` |
-| `VITE_BRAND_NAME`     | Nome exibido na barra superior; padrão `Rocket`                |
-| `VITE_BRAND_LOGO_URL` | URL opcional para a imagem da marca na barra superior          |
+| Variável                 | Uso                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| `POSTGRES_PASSWORD`      | Senha local do container PostgreSQL                                             |
+| `DATABASE_URL`           | Conexão PostgreSQL usada pela API, Prisma e seed                                |
+| `JWT_SECRET`             | Segredo dos tokens de acesso e das chaves de limitação; mínimo de 32 caracteres |
+| `DEMO_AUTH_ENABLED`      | Habilita a sessão demo fora de produção                                         |
+| `MAIL_PROVIDER`          | `log` em desenvolvimento ou `smtp` para envio real                              |
+| `MAIL_FROM`              | Remetente dos e-mails de recuperação de senha                                   |
+| `SMTP_HOST`              | Host do servidor SMTP                                                           |
+| `SMTP_PORT`              | Porta SMTP; padrão `587`                                                        |
+| `SMTP_SECURE`            | Use `true` para TLS implícito, como na porta `465`                              |
+| `SMTP_USER`              | Usuário SMTP                                                                    |
+| `SMTP_PASSWORD`          | Senha SMTP                                                                      |
+| `NODE_ENV`               | `development`, `test` ou `production`; padrão `development`                     |
+| `API_PORT`               | Porta da API; padrão `4000`                                                     |
+| `WEB_ORIGIN`             | Origem CORS permitida; padrão `http://localhost:5173`                           |
+| `VITE_API_URL`           | URL da API consumida pelo Vite; padrão `http://localhost:4000`                  |
+| `VITE_BRAND_NAME`        | Nome exibido na barra superior; padrão `Rocket`                                 |
+| `VITE_BRAND_LOGO_URL`    | URL opcional para a imagem da marca na barra superior                           |
+| `VITE_DEMO_AUTH_ENABLED` | Exibe o atalho para demonstração somente no Vite de desenvolvimento             |
 
-A API falha cedo com a lista das variáveis inválidas. A rota de sessão demo retorna 404 em produção, e a configuração rejeita autenticação demo habilitada quando `NODE_ENV=production`.
+A API falha cedo com a lista das variáveis inválidas. A rota de sessão demo retorna 404 em produção, e a configuração rejeita autenticação demo habilitada quando `NODE_ENV=production`. Produção exige `MAIL_PROVIDER=smtp` e as credenciais SMTP completas.
 
 ## Identidade visual
 
@@ -114,4 +122,4 @@ A interface usa uma paleta monocromática concentrada em `apps/web/src/styles/to
 
 ## Próximas etapas
 
-Autenticação e perfis reais, gestão de equipes e canais, mensageria completa, anexos, presença, busca, calendário, reuniões e recursos de administração estão planejados em [`docs/ROADMAP.md`](docs/ROADMAP.md) e ainda não devem ser considerados disponíveis.
+Gestão de equipes e canais, mensageria completa, anexos, presença, busca, calendário, reuniões e recursos de administração seguem planejados em [`docs/ROADMAP.md`](docs/ROADMAP.md) e ainda não devem ser considerados disponíveis.

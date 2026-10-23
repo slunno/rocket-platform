@@ -8,7 +8,7 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 | -------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0 — Fundação e higiene                       | ✅ Concluído | Shared package, validação Zod, qualidade e migração inicial configurados; CI aplicou migração e seed em PostgreSQL e confirmou a inicialização HTTP da API e da web. |
 | 1 — Design system e shell                    | ✅ Concluído | Shell responsivo, tokens monocromáticos, três temas persistidos, rotas principais, componentes separados e Lighthouse de acessibilidade 100.                         |
-| 2 — Autenticação e perfil reais              | ⏳ Pendente  | Cadastro, login, renovação rotativa, logout, recuperação e perfil testados com Argon2id, cookies seguros e rate limit.                                               |
+| 2 — Autenticação e perfil reais              | ✅ Concluído | Cadastro, login, renovação rotativa, logout, recuperação e perfil testados com Argon2id, cookies seguros e rate limit.                                               |
 | 3 — Organização, equipes e canais            | ⏳ Pendente  | Workspace → equipes → canais, papéis e permissões de servidor; membros acessam apenas conteúdo autorizado.                                                           |
 | 4 — Mensageria completa                      | ⏳ Pendente  | Cursor, idempotência, edição, exclusão, threads, reações, menções, leitura e eventos em tempo real entre dois usuários.                                              |
 | 5 — Chats 1:1 e em grupo                     | ⏳ Pendente  | Busca de pessoas, DMs idempotentes, grupos, participantes, silenciar e fixar; sem duplicação de conversas.                                                           |
@@ -134,3 +134,13 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 - **Rotas de demonstração:** Atividade, Calendário, Arquivos e Chamadas têm shell e estados vazios; os fluxos completos pertencem aos blocos futuros.
 - **Commits enviados:** `b4e0f8a chore(deps): prepara roteamento e testes da interface`; `38b2c2d feat(web): cria shell responsivo e sistema visual`; `07ddac6 test(web): cobre temas, rotas e busca por teclado`.
 - **Próximo bloco:** Bloco 2 — Autenticação e perfil reais.
+
+### 2026-10-23 — Bloco 2 concluído
+
+- **Status:** ✅ Concluído e enviado para `main`.
+- **Entregue:** schema e migração para sessões, recuperação de senha e limitação persistida; cadastro/login com Argon2id, access token curto, refresh rotativo, detecção de replay e revogação de família; logout local/global; recuperação com token de uso único e `MailProvider` de log/SMTP; perfil e status manual; autenticação e reautenticação do Socket.IO; telas de login, cadastro, recuperação e perfil.
+- **Proteções:** cookie de refresh `HttpOnly`/`SameSite=Lax`, validação de origem em rotas que usam cookie, respostas genéricas na recuperação, bloqueio progressivo e chaves de limitação armazenadas como HMAC.
+- **Validação local:** `npm run build`, `npm run lint`, `npm run typecheck`, `npm run test` (19 aprovados; 2 testes de integração ignorados localmente sem banco configurado), `npm run format:check`, `git diff --check` e `npm audit --audit-level=moderate` passaram; zero vulnerabilidades no audit. As telas de login, cadastro, recuperação e redefinição foram conferidas no navegador.
+- **CI #11:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39942467614), incluindo migração e testes de integração com PostgreSQL, build, seed e smoke test da API e web.
+- **Commits de implementação enviados:** `907fa01`, `e740f98`, `dff04da`, `ab94e1e`.
+- **Próximo bloco:** Bloco 3 — Organização, equipes e canais.
