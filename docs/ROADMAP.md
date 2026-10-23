@@ -125,12 +125,13 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 
 ### 2026-10-23 — Bloco 4 em andamento
 
-- **Status:** 🚧 Bloco em andamento; cursores, idempotência, edição, exclusão, reações e typing implementados. Digitação aguarda validação integrada; threads, menções, Markdown, não lidas e ressincronização ainda pendentes.
-- **Entregue:** histórico de canais e conversas por cursor estável, carregamento das páginas anteriores mantendo a rolagem; envio com `clientMessageId` idempotente; reducer reconcilia mensagens otimistas, páginas e eventos. Edição/exclusão respeitam autoria; exclusão é lógica; reações são idempotentes e mostram participantes. O evento de digitação valida a sala no servidor e expira no cliente após inatividade.
-- **Validação local:** build, lint, typecheck, format check, 31 testes aprovados, audit sem vulnerabilidades e `git diff --check`; 3 testes de integração PostgreSQL são ignorados localmente porque o host não tem banco. Cursor/retry passou no CI #16; edição, exclusão e reações passaram no CI #17; typing está pendente do próximo workflow.
+- **Status:** 🚧 Bloco em andamento; cursores, idempotência, edição, exclusão, reações, typing e tópicos implementados. Tópicos aguardam validação integrada; menções, Markdown/preview, não lidas e ressincronização ainda pendentes.
+- **Entregue:** histórico de canais e conversas por cursor estável, carregamento das páginas anteriores mantendo a rolagem; envio com `clientMessageId` idempotente; reducer reconcilia mensagens otimistas, páginas e eventos. Edição/exclusão respeitam autoria; exclusão é lógica; reações são idempotentes e mostram participantes. O evento de digitação valida a sala no servidor e expira no cliente após inatividade. Respostas usam `replyToId`, têm cursor, ficam fora da linha do tempo principal e atualizam a contagem do tópico por socket.
+- **Validação local:** build, lint, typecheck, format check, 32 testes aprovados, audit sem vulnerabilidades e `git diff --check`; testes de integração PostgreSQL são ignorados localmente porque o host não tem banco. Cursor/retry passou no CI #16; edição, exclusão e reações passaram no CI #17; typing passou no CI #18; tópicos aguardam o próximo workflow.
 - **CI #16:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39949362891), incluindo migração, integração de cursor/retries, build, seed e smoke test.
 - **CI #17:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39950279520), incluindo testes integrados de edição, exclusão lógica e reações com PostgreSQL.
-- **Próxima etapa:** validar digitação no CI; depois implementar threads, menções, Markdown/preview sanitizados, não lidas e ressincronização após reconexão.
+- **CI #18:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39951288085), incluindo build, migrações, seed e smoke test.
+- **Próxima etapa:** validar tópicos no CI; depois implementar menções, Markdown/preview sanitizados, não lidas e ressincronização após reconexão.
 
 ### 2026-10-22 — Bloco 0 concluído
 

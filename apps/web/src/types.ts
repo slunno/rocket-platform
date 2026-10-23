@@ -27,6 +27,7 @@ export type Message = {
   mine?: boolean;
   edited?: boolean;
   deleted?: boolean;
+  replyToId?: string;
   reactions?: Reaction[];
   replyCount?: number;
 };

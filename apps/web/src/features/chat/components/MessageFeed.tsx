@@ -16,10 +16,10 @@ export function MessageFeed({
   onLoadOlder,
   me,
   onShowDetails,
-  onToast,
   onToggleReaction,
   onEditMessage,
   onDeleteMessage,
+  onOpenThread,
 }: {
   active: Conversation;
   isChannel: boolean;
@@ -31,10 +31,10 @@ export function MessageFeed({
   onLoadOlder: () => Promise<void>;
   me: Person;
   onShowDetails: () => void;
-  onToast: (message: string) => void;
   onToggleReaction: (messageId: string, emoji: string, active: boolean) => Promise<void>;
   onEditMessage: (messageId: string, text: string) => Promise<boolean>;
   onDeleteMessage: (messageId: string) => Promise<void>;
+  onOpenThread: (message: Message) => void;
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isLoadingRef = useRef(false);
@@ -210,20 +210,18 @@ export function MessageFeed({
                         ))}
                       </div>
                     )}
-                    {!message.deleted && message.replyCount ? (
+                    {!message.deleted && (
                       <button
                         className="thread-link"
-                        onClick={() =>
-                          onToast('As conversas em tópicos serão adicionadas em breve.')
-                        }
+                        type="button"
+                        onClick={() => onOpenThread(message)}
                       >
-                        <span className="thread-avatars">
-                          <Avatar person={me} size="small" />
-                          <Avatar person={message.author} size="small" />
-                        </span>
-                        {message.replyCount} respostas <span>Última resposta às 10:38</span>
+                        <MessageCircle size={13} />
+                        {message.replyCount
+                          ? `${message.replyCount} respostas`
+                          : 'Responder no tópico'}
                       </button>
-                    ) : null}
+                    )}
                   </div>
                   {!message.deleted && (
                     <div className="message-hover-actions">
@@ -237,12 +235,6 @@ export function MessageFeed({
                         }
                       >
                         <Smile size={15} />
-                      </button>
-                      <button
-                        aria-label="Responder no tópico"
-                        onClick={() => onToast('Conversas em tópicos em breve.')}
-                      >
-                        <MessageCircle size={15} />
                       </button>
                       {message.mine && (
                         <button

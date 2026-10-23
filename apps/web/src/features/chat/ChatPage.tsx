@@ -27,6 +27,7 @@ import {
   getChannelMembers,
   getChannelMessages,
   getConversations,
+  getMessageReplies,
   getMessages,
   getTeamMembers,
   getWorkspace,
@@ -41,6 +42,7 @@ import {
   removeTeamMember,
   sendChannelMessage,
   sendMessage,
+  sendMessageReply,
   updateChannel,
   updateChannelPreference,
   updateTeam,
@@ -54,7 +56,7 @@ import {
   type WorkspaceRole,
 } from '../../api';
 import type { Conversation, Message } from '../../types';
-import { messagesReducer } from './message-state';
+import { mergeMessage, messagesReducer } from './message-state';
 import { useAuth } from '../../auth/AuthContext';
 import { ChatSidebar } from './components/ChatSidebar';
 import { ConversationDetails } from './components/ConversationDetails';
@@ -62,6 +64,7 @@ import { ConversationHeader } from './components/ConversationHeader';
 import { MessageComposer } from './components/MessageComposer';
 import { MessageFeed } from './components/MessageFeed';
 import { MessageSearchDialog } from './components/MessageSearchDialog';
+import { ThreadPanel } from './components/ThreadPanel';
 import { OrganizationDialog, type OrganizationDialogState } from './components/OrganizationDialog';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -96,6 +99,13 @@ export function ChatPage() {
   const [typingUsers, setTypingUsers] = useState<
     Record<string, { userId: string; displayName: string }[]>
   >({});
+  const [threadRoot, setThreadRoot] = useState<Message | null>(null);
+  const [threadReplies, setThreadReplies] = useState<Message[]>([]);
+  const [threadPage, setThreadPage] = useState<{
+    nextCursor: string | null;
+    loading: boolean;
+    loadingOlder: boolean;
+  }>({ nextCursor: null, loading: false, loadingOlder: false });
   const [showDetails, setShowDetails] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -117,11 +127,13 @@ export function ChatPage() {
     targetId: string;
   } | null>(null);
   const remoteTypingTimeoutsRef = useRef(new Map<string, number>());
+  const threadRootIdRef = useRef<string | null>(null);
   const latestTokenRef = useRef(token);
   const myIdRef = useRef(me.id);
   const resizeOrigin = useRef<{ x: number; width: number } | null>(null);
   latestTokenRef.current = token;
   myIdRef.current = me.id;
+  threadRootIdRef.current = threadRoot?.id ?? null;
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -307,6 +319,12 @@ export function ChatPage() {
     );
     socket.on('message:created', (message: Parameters<typeof mapRemoteMessage>[0]) => {
       const normalized = mapRemoteMessage(message, myIdRef.current);
+      if (message.replyToId) {
+        if (threadRootIdRef.current === message.replyToId) {
+          setThreadReplies((current) => mergeMessage(current, normalized));
+        }
+        return;
+      }
       const parentId = message.conversationId ?? message.channelId ?? '';
       if (!parentId) return;
       dispatchMessage({
@@ -316,17 +334,43 @@ export function ChatPage() {
       });
     });
     socket.on('message:updated', (message: Parameters<typeof mapRemoteMessage>[0]) => {
+      const normalized = mapRemoteMessage(message, myIdRef.current);
+      if (message.replyToId) {
+        if (threadRootIdRef.current === message.replyToId) {
+          setThreadReplies((current) => mergeMessage(current, normalized));
+        }
+        return;
+      }
+      if (threadRootIdRef.current === message.id) setThreadRoot(normalized);
       const parentId = message.conversationId ?? message.channelId ?? '';
       if (!parentId) return;
       dispatchMessage({
         type: 'message-updated',
         conversationId: parentId,
-        message: mapRemoteMessage(message, myIdRef.current),
+        message: normalized,
       });
     });
     socket.on(
       'message:deleted',
-      (message: { id: string; conversationId?: string; channelId?: string }) => {
+      (message: {
+        id: string;
+        conversationId?: string;
+        channelId?: string;
+        replyToId?: string | null;
+      }) => {
+        if (message.replyToId) {
+          if (threadRootIdRef.current === message.replyToId) {
+            setThreadReplies((current) =>
+              current.map((reply) =>
+                reply.id === message.id ? { ...reply, deleted: true } : reply,
+              ),
+            );
+          }
+          return;
+        }
+        setThreadRoot((current) =>
+          current?.id === message.id ? { ...current, deleted: true } : current,
+        );
         const parentId = message.conversationId ?? message.channelId ?? '';
         if (!parentId) return;
         dispatchMessage({
@@ -337,12 +381,20 @@ export function ChatPage() {
       },
     );
     const handleReactionChanged = (message: Parameters<typeof mapRemoteMessage>[0]) => {
+      const normalized = mapRemoteMessage(message, myIdRef.current);
+      if (message.replyToId) {
+        if (threadRootIdRef.current === message.replyToId) {
+          setThreadReplies((current) => mergeMessage(current, normalized));
+        }
+        return;
+      }
+      if (threadRootIdRef.current === message.id) setThreadRoot(normalized);
       const parentId = message.conversationId ?? message.channelId ?? '';
       if (!parentId) return;
       dispatchMessage({
         type: 'message-updated',
         conversationId: parentId,
-        message: mapRemoteMessage(message, myIdRef.current),
+        message: normalized,
       });
     };
     socket.on('reaction:added', handleReactionChanged);
@@ -384,6 +436,37 @@ export function ChatPage() {
       })
       .catch(() => undefined);
   }, [active, loadedConversationIds, me.id, token]);
+
+  useEffect(() => {
+    if (!threadRoot || !token) {
+      setThreadReplies([]);
+      setThreadPage({ nextCursor: null, loading: false, loadingOlder: false });
+      return;
+    }
+    let current = true;
+    setThreadReplies([]);
+    setThreadPage({ nextCursor: null, loading: true, loadingOlder: false });
+    void getMessageReplies(token, threadRoot.id)
+      .then((page) => {
+        if (!current) return;
+        const pageMessages = page.items.map((message) => mapRemoteMessage(message, me.id));
+        setThreadReplies((replies) => replies.reduce(mergeMessage, pageMessages));
+        setThreadPage({ nextCursor: page.nextCursor, loading: false, loadingOlder: false });
+      })
+      .catch(() => {
+        if (current) {
+          setThreadPage({ nextCursor: null, loading: false, loadingOlder: false });
+          showToast('Não foi possível carregar as respostas do tópico.');
+        }
+      });
+    return () => {
+      current = false;
+    };
+  }, [me.id, showToast, threadRoot?.id, token]);
+
+  useEffect(() => {
+    setThreadRoot(null);
+  }, [activeId]);
 
   useEffect(() => {
     if (skipNextAutoScrollRef.current) {
@@ -466,6 +549,21 @@ export function ChatPage() {
     }
   };
 
+  const loadOlderThreadReplies = async () => {
+    if (!token || !threadRoot || !threadPage.nextCursor || threadPage.loadingOlder) return;
+    const cursor = threadPage.nextCursor;
+    setThreadPage((current) => ({ ...current, loadingOlder: true }));
+    try {
+      const page = await getMessageReplies(token, threadRoot.id, cursor);
+      const olderReplies = page.items.map((message) => mapRemoteMessage(message, me.id));
+      setThreadReplies((replies) => replies.reduce(mergeMessage, olderReplies));
+      setThreadPage({ nextCursor: page.nextCursor, loading: false, loadingOlder: false });
+    } catch {
+      setThreadPage((current) => ({ ...current, loadingOlder: false }));
+      showToast('Não foi possível carregar as respostas anteriores.');
+    }
+  };
+
   const handleSend = async () => {
     const cleanText = text.trim();
     if (!cleanText || !active) return;
@@ -504,6 +602,95 @@ export function ChatPage() {
         });
         showToast('Não foi possível enviar a mensagem. Confira sua conexão e tente novamente.');
       }
+    }
+  };
+
+  const handleThreadSend = async (cleanText: string) => {
+    if (!threadRoot) return;
+    const clientMessageId = crypto.randomUUID();
+    const temporaryId = `local-${clientMessageId}`;
+    const now = new Date();
+    const optimistic: Message = {
+      id: temporaryId,
+      clientMessageId,
+      replyToId: threadRoot.id,
+      author: me,
+      text: cleanText,
+      time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(now),
+      date: new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(now),
+      mine: true,
+    };
+    setThreadReplies((current) => mergeMessage(current, optimistic));
+    if (!token) {
+      setThreadRoot((current) =>
+        current ? { ...current, replyCount: (current.replyCount ?? 0) + 1 } : current,
+      );
+      return;
+    }
+    try {
+      const created = await sendMessageReply(token, threadRoot.id, cleanText, clientMessageId);
+      setThreadReplies((current) => mergeMessage(current, mapRemoteMessage(created, me.id)));
+    } catch {
+      setThreadReplies((current) => current.filter((reply) => reply.id !== temporaryId));
+      showToast('Não foi possível enviar a resposta. Confira sua conexão e tente novamente.');
+    }
+  };
+
+  const handleEditThreadMessage = async (messageId: string, nextText: string) => {
+    const current = threadReplies.find((reply) => reply.id === messageId);
+    if (!current) return false;
+    if (!token) {
+      setThreadReplies((replies) =>
+        replies.map((reply) =>
+          reply.id === messageId ? { ...reply, text: nextText.trim(), edited: true } : reply,
+        ),
+      );
+      return true;
+    }
+    try {
+      const updated = await editMessage(token, messageId, nextText);
+      setThreadReplies((replies) => mergeMessage(replies, mapRemoteMessage(updated, me.id)));
+      return true;
+    } catch {
+      showToast('Não foi possível editar a resposta.');
+      return false;
+    }
+  };
+
+  const handleDeleteThreadMessage = async (messageId: string) => {
+    if (token) {
+      try {
+        await deleteMessage(token, messageId);
+      } catch {
+        showToast('Não foi possível excluir a resposta.');
+        return;
+      }
+    } else {
+      setThreadRoot((current) =>
+        current ? { ...current, replyCount: Math.max(0, (current.replyCount ?? 0) - 1) } : current,
+      );
+    }
+    setThreadReplies((replies) =>
+      replies.map((reply) => (reply.id === messageId ? { ...reply, deleted: true } : reply)),
+    );
+  };
+
+  const handleToggleThreadReaction = async (
+    messageId: string,
+    emoji: string,
+    isActive: boolean,
+  ) => {
+    if (!token) {
+      showToast('Entre na sua conta para reagir à resposta.');
+      return;
+    }
+    try {
+      const updated = isActive
+        ? await removeMessageReaction(token, messageId, emoji)
+        : await addMessageReaction(token, messageId, emoji);
+      setThreadReplies((replies) => mergeMessage(replies, mapRemoteMessage(updated, me.id)));
+    } catch {
+      showToast('Não foi possível atualizar a reação.');
     }
   };
 
@@ -835,10 +1022,13 @@ export function ChatPage() {
                 onLoadOlder={loadOlderMessages}
                 me={me}
                 onShowDetails={() => setShowDetails(true)}
-                onToast={showToast}
                 onToggleReaction={handleToggleReaction}
                 onEditMessage={handleEditMessage}
                 onDeleteMessage={handleDeleteMessage}
+                onOpenThread={(message) => {
+                  setThreadRoot(message);
+                  setShowDetails(false);
+                }}
               />
               <MessageComposer
                 activeName={active.name}
@@ -855,14 +1045,30 @@ export function ChatPage() {
                 ).map(({ displayName }) => displayName)}
               />
             </section>
-            <ConversationDetails
-              active={active}
-              isChannel={isChannel}
-              open={showDetails}
-              onClose={() => setShowDetails(false)}
-              onToast={showToast}
-              meId={me.id}
-            />
+            {threadRoot ? (
+              <ThreadPanel
+                root={threadRoot}
+                replies={threadReplies}
+                nextCursor={threadPage.nextCursor}
+                isLoading={threadPage.loading}
+                isLoadingOlder={threadPage.loadingOlder}
+                onLoadOlder={() => void loadOlderThreadReplies()}
+                onClose={() => setThreadRoot(null)}
+                onSend={handleThreadSend}
+                onEditMessage={handleEditThreadMessage}
+                onDeleteMessage={handleDeleteThreadMessage}
+                onToggleReaction={handleToggleThreadReaction}
+              />
+            ) : (
+              <ConversationDetails
+                active={active}
+                isChannel={isChannel}
+                open={showDetails}
+                onClose={() => setShowDetails(false)}
+                onToast={showToast}
+                meId={me.id}
+              />
+            )}
           </div>
         </section>
       ) : (

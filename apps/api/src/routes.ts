@@ -15,7 +15,10 @@ const getRouteParam = (value: string | string[] | undefined) =>
   Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
 
 function withReactionCounts<
-  T extends { reactions: { emoji: string; user: { id: string; displayName: string } }[] },
+  T extends {
+    reactions: { emoji: string; user: { id: string; displayName: string } }[];
+    _count: { replies: number };
+  },
 >(message: T) {
   const usersByEmoji = new Map<string, { id: string; displayName: string }[]>();
   for (const reaction of message.reactions) {
@@ -30,6 +33,7 @@ function withReactionCounts<
       users,
       _count: { userId: users.length },
     })),
+    replyCount: message._count.replies,
   };
 }
 
@@ -38,12 +42,13 @@ const messageInclude = {
     select: { id: true, username: true, displayName: true, avatarUrl: true, status: true },
   },
   reactions: { select: { emoji: true, user: { select: { id: true, displayName: true } } } },
+  _count: { select: { replies: { where: { deletedAt: null } } } },
 } as const;
 
 async function findAuthorizedMessage(messageId: string, userId: string) {
   const message = await prisma.message.findFirst({
     where: { id: messageId, deletedAt: null },
-    select: { id: true, authorId: true, conversationId: true, channelId: true },
+    select: { id: true, authorId: true, conversationId: true, channelId: true, replyToId: true },
   });
   if (!message) {
     return {
@@ -105,14 +110,35 @@ async function listMessages(
 ) {
   if (cursor) {
     const cursorMessage = await prisma.message.findFirst({
-      where: { ...parent, id: cursor },
+      where: { ...parent, id: cursor, replyToId: null },
       select: { id: true },
     });
     if (!cursorMessage) return null;
   }
 
   const messages = await prisma.message.findMany({
-    where: { ...parent, deletedAt: null },
+    where: { ...parent, replyToId: null, deletedAt: null },
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    take: limit + 1,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    include: messageInclude,
+  });
+  const hasMore = messages.length > limit;
+  const items = messages.slice(0, limit).reverse().map(withReactionCounts);
+  return { items, nextCursor: hasMore ? (items[0]?.id ?? null) : null };
+}
+
+async function listThreadReplies(rootMessageId: string, limit: number, cursor?: string) {
+  if (cursor) {
+    const cursorMessage = await prisma.message.findFirst({
+      where: { id: cursor, replyToId: rootMessageId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!cursorMessage) return null;
+  }
+
+  const messages = await prisma.message.findMany({
+    where: { replyToId: rootMessageId, deletedAt: null },
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     take: limit + 1,
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -415,6 +441,183 @@ export function createApiRouter(io: Server) {
     }
   });
 
+  router.get('/messages/:messageId/replies', requireAuth, async (req, res, next) => {
+    try {
+      const messageId = getRouteParam(req.params.messageId);
+      const access = await findAuthorizedMessage(messageId, req.userId!);
+      if (!access.allowed)
+        return res.status(access.status).json({
+          error: { code: access.code, message: access.message },
+        });
+      if (access.message.replyToId) {
+        return res.status(400).json({
+          error: {
+            code: 'MESSAGE_THREAD_ROOT_REQUIRED',
+            message: 'As respostas devem pertencer à mensagem inicial do tópico.',
+          },
+        });
+      }
+      const parsedQuery = paginationQuerySchema.safeParse({
+        limit: req.query.limit,
+        cursor: req.query.cursor,
+      });
+      if (!parsedQuery.success) {
+        return res.status(400).json({
+          error: { code: 'VALIDATION_ERROR', message: 'Informe uma página válida de respostas.' },
+        });
+      }
+      const page = await listThreadReplies(
+        messageId,
+        parsedQuery.data.limit,
+        parsedQuery.data.cursor,
+      );
+      if (!page) {
+        return res.status(400).json({
+          error: { code: 'INVALID_MESSAGE_CURSOR', message: 'O cursor não pertence ao tópico.' },
+        });
+      }
+      return res.json(page);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/messages/:messageId/replies', requireAuth, async (req, res, next) => {
+    try {
+      const messageId = getRouteParam(req.params.messageId);
+      const access = await findAuthorizedMessage(messageId, req.userId!);
+      if (!access.allowed)
+        return res.status(access.status).json({
+          error: { code: access.code, message: access.message },
+        });
+      if (access.message.replyToId) {
+        return res.status(400).json({
+          error: {
+            code: 'MESSAGE_THREAD_ROOT_REQUIRED',
+            message: 'As respostas devem pertencer à mensagem inicial do tópico.',
+          },
+        });
+      }
+      const parsedBody = messageInputSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'A resposta deve conter de 1 a 10.000 caracteres.',
+          },
+        });
+      }
+
+      const { clientMessageId, text } = parsedBody.data;
+      let existingReply = null;
+      if (clientMessageId && access.message.conversationId) {
+        existingReply = await prisma.message.findUnique({
+          where: {
+            conversationId_authorId_clientMessageId: {
+              conversationId: access.message.conversationId,
+              authorId: req.userId!,
+              clientMessageId,
+            },
+          },
+          include: messageInclude,
+        });
+      } else if (clientMessageId && access.message.channelId) {
+        existingReply = await prisma.message.findUnique({
+          where: {
+            channelId_authorId_clientMessageId: {
+              channelId: access.message.channelId,
+              authorId: req.userId!,
+              clientMessageId,
+            },
+          },
+          include: messageInclude,
+        });
+      }
+      if (existingReply) {
+        if (existingReply.replyToId !== messageId) {
+          return res.status(409).json({
+            error: {
+              code: 'IDEMPOTENCY_KEY_REUSED',
+              message: 'Este identificador já foi usado em outra mensagem.',
+            },
+          });
+        }
+        return res.status(200).json(withReactionCounts(existingReply));
+      }
+
+      const replyData = {
+        authorId: req.userId!,
+        text,
+        replyToId: messageId,
+        ...(clientMessageId ? { clientMessageId } : {}),
+      };
+      const reply = access.message.conversationId
+        ? clientMessageId
+          ? await prisma.message.upsert({
+              where: {
+                conversationId_authorId_clientMessageId: {
+                  conversationId: access.message.conversationId,
+                  authorId: req.userId!,
+                  clientMessageId,
+                },
+              },
+              create: { ...replyData, conversationId: access.message.conversationId },
+              update: {},
+              include: messageInclude,
+            })
+          : await prisma.message.create({
+              data: { ...replyData, conversationId: access.message.conversationId },
+              include: messageInclude,
+            })
+        : clientMessageId
+          ? await prisma.message.upsert({
+              where: {
+                channelId_authorId_clientMessageId: {
+                  channelId: access.message.channelId!,
+                  authorId: req.userId!,
+                  clientMessageId,
+                },
+              },
+              create: { ...replyData, channelId: access.message.channelId! },
+              update: {},
+              include: messageInclude,
+            })
+          : await prisma.message.create({
+              data: { ...replyData, channelId: access.message.channelId! },
+              include: messageInclude,
+            });
+      if (reply.replyToId !== messageId) {
+        return res.status(409).json({
+          error: {
+            code: 'IDEMPOTENCY_KEY_REUSED',
+            message: 'Este identificador já foi usado em outra mensagem.',
+          },
+        });
+      }
+      if (access.message.conversationId) {
+        await prisma.conversation.update({
+          where: { id: access.message.conversationId },
+          data: { updatedAt: new Date() },
+        });
+      }
+      const normalizedReply = {
+        ...withReactionCounts(reply),
+        conversationId: access.message.conversationId ?? undefined,
+        channelId: access.message.channelId ?? undefined,
+      };
+      io.to(access.room).emit('message:created', normalizedReply);
+
+      const updatedRoot = await prisma.message.findUniqueOrThrow({
+        where: { id: messageId },
+        include: messageInclude,
+      });
+      io.to(access.room).emit('message:updated', withReactionCounts(updatedRoot));
+      return res.status(201).json(normalizedReply);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   router.patch('/messages/:messageId', requireAuth, async (req, res, next) => {
     try {
       const messageId = getRouteParam(req.params.messageId);
@@ -469,8 +672,16 @@ export function createApiRouter(io: Server) {
         id: messageId,
         conversationId: access.message.conversationId,
         channelId: access.message.channelId,
+        replyToId: access.message.replyToId,
         deletedAt: deletedAt.toISOString(),
       });
+      if (access.message.replyToId) {
+        const updatedRoot = await prisma.message.findUniqueOrThrow({
+          where: { id: access.message.replyToId },
+          include: messageInclude,
+        });
+        io.to(access.room).emit('message:updated', withReactionCounts(updatedRoot));
+      }
       return res.status(204).end();
     } catch (error) {
       return next(error);

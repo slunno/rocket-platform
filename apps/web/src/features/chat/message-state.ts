@@ -19,6 +19,16 @@ function hasMessage(messages: Message[], candidate: Message) {
   );
 }
 
+export function mergeMessage(messages: Message[], candidate: Message): Message[] {
+  const existingIndex = messages.findIndex(
+    (message) =>
+      message.id === candidate.id ||
+      Boolean(candidate.clientMessageId && message.clientMessageId === candidate.clientMessageId),
+  );
+  if (existingIndex < 0) return [...messages, candidate];
+  return messages.map((message, index) => (index === existingIndex ? candidate : message));
+}
+
 export function messagesReducer(state: MessageState, action: MessageAction): MessageState {
   const current = state[action.conversationId] ?? [];
 

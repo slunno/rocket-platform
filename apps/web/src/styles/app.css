@@ -1048,23 +1048,7 @@ kbd {
   background: transparent;
   font-size: 10px;
   font-weight: 650;
-}
-
-.thread-link > span:last-child {
-  color: var(--text-muted);
-  font-weight: 400;
-}
-
-.thread-avatars {
-  display: flex;
-}
-
-.thread-avatars .avatar {
-  width: 18px;
-  height: 18px;
-  margin-left: -4px;
-  border: 1.5px solid var(--surface-base);
-  font-size: 6px;
+  cursor: pointer;
 }
 
 .message-hover-actions {
@@ -1269,6 +1253,151 @@ kbd {
   overflow: auto;
   border-left: 1px solid var(--border);
   background: var(--surface-base);
+}
+
+.thread-panel {
+  display: flex;
+  width: 350px;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.thread-root {
+  display: flex;
+  gap: 9px;
+  padding: 10px 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.thread-root strong,
+.thread-reply-meta strong {
+  color: var(--text-primary);
+  font-size: 10px;
+}
+
+.thread-root p,
+.thread-reply-body > p {
+  margin: 4px 0 0;
+  color: var(--text-primary);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.thread-replies {
+  display: flex;
+  min-height: 70px;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  overflow: auto;
+}
+
+.thread-reply {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.thread-reply-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.thread-reply-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.thread-reply-meta time {
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.thread-reply-actions,
+.thread-edit-form > div {
+  display: flex;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.thread-reply-actions button,
+.thread-edit-form button {
+  padding: 0;
+  border: 0;
+  color: var(--text-muted);
+  background: transparent;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.thread-reply-actions button:hover,
+.thread-edit-form button:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.thread-edit-form textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  background: var(--surface-base);
+  font: inherit;
+  resize: vertical;
+}
+
+.thread-empty {
+  margin: 8px 0;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-align: center;
+}
+
+.thread-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-base);
+}
+
+.thread-composer textarea {
+  min-width: 0;
+  flex: 1;
+  padding: 4px;
+  border: 0;
+  outline: 0;
+  color: var(--text-primary);
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  resize: vertical;
+}
+
+.thread-composer button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  color: var(--surface-base);
+  background: var(--brand);
+  cursor: pointer;
+}
+
+.thread-composer button:disabled {
+  color: var(--text-muted);
+  background: var(--surface-hover);
+  cursor: default;
 }
 
 .details-header {

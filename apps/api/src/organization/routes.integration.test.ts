@@ -199,7 +199,64 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
     expect(olderPage.items).toHaveLength(1);
     expect(olderPage.nextCursor).toBeNull();
     expect(new Set([...olderPage.items, ...recentPage.items].map(({ id }) => id)).size).toBe(3);
-    expect(await prisma.message.count({ where: { channelId: publicChannel.id } })).toBe(3);
+    const replyClientMessageId = randomUUID();
+    const firstReplyResponse = await request(
+      'POST',
+      `/messages/${firstMessageJson.id}/replies`,
+      owner.accessToken,
+      { text: 'Resposta dentro do tópico.', clientMessageId: replyClientMessageId },
+    );
+    const firstReply = (await firstReplyResponse.json()) as {
+      id: string;
+      replyToId: string;
+      text: string;
+    };
+    const retriedReplyResponse = await request(
+      'POST',
+      `/messages/${firstMessageJson.id}/replies`,
+      owner.accessToken,
+      { text: 'Texto repetido após retry.', clientMessageId: replyClientMessageId },
+    );
+    const retriedReply = (await retriedReplyResponse.json()) as { id: string; text: string };
+    expect(firstReplyResponse.status).toBe(201);
+    expect(firstReply).toMatchObject({
+      replyToId: firstMessageJson.id,
+      text: 'Resposta dentro do tópico.',
+    });
+    expect(retriedReplyResponse.status).toBe(200);
+    expect(retriedReply).toEqual({ id: firstReply.id, text: firstReply.text });
+    const threadPageResponse = await request(
+      'GET',
+      `/messages/${firstMessageJson.id}/replies?limit=10`,
+      owner.accessToken,
+    );
+    const threadPage = (await threadPageResponse.json()) as {
+      items: { id: string }[];
+      nextCursor: string | null;
+    };
+    expect(threadPageResponse.status).toBe(200);
+    expect(threadPage.items.map(({ id }) => id)).toEqual([firstReply.id]);
+    expect(threadPage.nextCursor).toBeNull();
+    expect(
+      (
+        await request('POST', `/messages/${firstReply.id}/replies`, owner.accessToken, {
+          text: 'Resposta aninhada não permitida.',
+        })
+      ).status,
+    ).toBe(400);
+    const rootsOnlyResponse = await request(
+      'GET',
+      `/channels/${publicChannel.id}/messages?limit=10`,
+      owner.accessToken,
+    );
+    const rootsOnly = (await rootsOnlyResponse.json()) as {
+      items: { id: string; replyCount: number }[];
+    };
+    expect(rootsOnly.items).toHaveLength(3);
+    expect(rootsOnly.items.find(({ id }) => id === firstMessageJson.id)?.replyCount).toBe(1);
+    expect(
+      await prisma.message.count({ where: { channelId: publicChannel.id, replyToId: null } }),
+    ).toBe(3);
     expect(
       (
         await request(
@@ -334,10 +391,56 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
     expect(
       (await request('GET', `/channels/${privateChannel.id}/messages`, member.accessToken)).status,
     ).toBe(403);
+    expect(
+      (
+        await request('POST', `/messages/${firstMessageJson.id}/replies`, member.accessToken, {
+          text: 'Sem entrar na equipe.',
+        })
+      ).status,
+    ).toBe(403);
     expect((await request('POST', `/teams/${team.id}/join`, member.accessToken)).status).toBe(204);
     expect(
       (await request('GET', `/channels/${publicChannel.id}/messages`, member.accessToken)).status,
     ).toBe(200);
+    const memberReplyResponse = await request(
+      'POST',
+      `/messages/${firstMessageJson.id}/replies`,
+      member.accessToken,
+      { text: 'Resposta de uma pessoa participante.', clientMessageId: randomUUID() },
+    );
+    expect(memberReplyResponse.status).toBe(201);
+    const updatedRootResponse = await request(
+      'GET',
+      `/channels/${publicChannel.id}/messages?limit=10`,
+      owner.accessToken,
+    );
+    const updatedRoots = (await updatedRootResponse.json()) as {
+      items: { id: string; replyCount: number }[];
+    };
+    expect(updatedRoots.items.find(({ id }) => id === firstMessageJson.id)?.replyCount).toBe(2);
+    expect((await request('DELETE', `/messages/${firstReply.id}`, member.accessToken)).status).toBe(
+      403,
+    );
+    expect((await request('DELETE', `/messages/${firstReply.id}`, owner.accessToken)).status).toBe(
+      204,
+    );
+    const liveThreadResponse = await request(
+      'GET',
+      `/messages/${firstMessageJson.id}/replies?limit=10`,
+      owner.accessToken,
+    );
+    const liveThread = (await liveThreadResponse.json()) as { items: { id: string }[] };
+    expect(liveThread.items).toHaveLength(1);
+    expect(liveThread.items[0]?.id).not.toBe(firstReply.id);
+    const liveRootResponse = await request(
+      'GET',
+      `/channels/${publicChannel.id}/messages?limit=10`,
+      owner.accessToken,
+    );
+    const liveRoots = (await liveRootResponse.json()) as {
+      items: { id: string; replyCount: number }[];
+    };
+    expect(liveRoots.items.find(({ id }) => id === firstMessageJson.id)?.replyCount).toBe(1);
     expect(
       (
         await request('PATCH', `/messages/${firstMessageJson.id}`, member.accessToken, {

@@ -319,6 +319,8 @@ export type RemoteMessage = {
   conversationId?: string;
   channelId?: string;
   clientMessageId?: string | null;
+  replyToId?: string | null;
+  replyCount?: number;
   editedAt?: string | null;
   deletedAt?: string | null;
   text: string;
@@ -373,6 +375,22 @@ export const sendChannelMessage = (
   clientMessageId: string,
 ) =>
   request<RemoteMessage>(`/api/channels/${encodeURIComponent(id)}/messages`, token, {
+    method: 'POST',
+    body: JSON.stringify({ text, clientMessageId }),
+  });
+
+export const getMessageReplies = (token: string, messageId: string, cursor?: string) =>
+  request<RemoteMessagePage>(
+    messagePagePath(`/api/messages/${encodeURIComponent(messageId)}/replies`, cursor),
+    token,
+  );
+export const sendMessageReply = (
+  token: string,
+  messageId: string,
+  text: string,
+  clientMessageId: string,
+) =>
+  request<RemoteMessage>(`/api/messages/${encodeURIComponent(messageId)}/replies`, token, {
     method: 'POST',
     body: JSON.stringify({ text, clientMessageId }),
   });
@@ -445,6 +463,8 @@ export function mapRemoteMessage(message: RemoteMessage, myId: string): Message 
   return {
     id: message.id,
     clientMessageId: message.clientMessageId ?? undefined,
+    replyToId: message.replyToId ?? undefined,
+    replyCount: message.replyCount ?? 0,
     author,
     text: message.text,
     edited: Boolean(message.editedAt),

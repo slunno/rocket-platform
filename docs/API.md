@@ -63,6 +63,10 @@ As rotas de mensagens recebem `limit` (1–100, padrão 50) e um `cursor` opcion
 | `DELETE /messages/:messageId`                  | Define `deletedAt` sem apagar o registro e notifica a sala em tempo real. | Autoria da mensagem                       |
 | `PUT /messages/:messageId/reactions`           | Adiciona uma reação idempotente; resposta lista quem reagiu.              | Participante autorizado da conversa/canal |
 | `DELETE /messages/:messageId/reactions/:emoji` | Remove a reação da pessoa autenticada.                                    | Participante autorizado da conversa/canal |
+| `GET /messages/:messageId/replies`             | Lista respostas do tópico com `limit` e cursor.                           | Participante autorizado da conversa/canal |
+| `POST /messages/:messageId/replies`            | Cria resposta idempotente no tópico da mensagem inicial.                  | Participante autorizado da conversa/canal |
+
+Tópicos têm um nível: respostas não podem receber outras respostas. As respostas não aparecem na linha do tempo principal; a mensagem inicial informa `replyCount`, que não inclui respostas excluídas logicamente. Criar uma resposta emite `message:created` com `replyToId` e atualiza a mensagem inicial com `message:updated`.
 
 ## Socket.IO
 

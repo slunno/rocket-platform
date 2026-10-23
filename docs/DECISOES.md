@@ -85,3 +85,9 @@ Registros curtos de contexto, decisão e consequência.
 - **Contexto:** participantes precisam saber quando outra pessoa está escrevendo sem confiar em identidade ou sala informada pelo navegador.
 - **Decisão:** o socket valida o evento com schema compartilhado e só publica em uma sala que a conexão autenticada já integra; nome e ID vêm da sessão no servidor.
 - **Consequência:** o navegador envia estados de início e parada, encerra após inatividade e remove indicadores remotos depois de três segundos sem atualização.
+
+## 2026-10-23 — Respostas em tópicos
+
+- **Contexto:** canais e chats precisam permitir conversas laterais sem misturar respostas à linha do tempo principal.
+- **Decisão:** usar `Message.replyToId` existente, autorizar cada operação pelo acesso à mensagem inicial e limitar os tópicos a um nível; contar apenas respostas não excluídas.
+- **Consequência:** respostas têm paginação por cursor, chave idempotente, eventos em tempo real e edição/exclusão pelos mesmos critérios de autoria das mensagens principais.

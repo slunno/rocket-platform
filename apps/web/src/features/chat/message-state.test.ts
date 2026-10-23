@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from '../../types';
-import { messagesReducer, type MessageState } from './message-state';
+import { mergeMessage, messagesReducer, type MessageState } from './message-state';
 
 function message(id: string, overrides: Partial<Message> = {}): Message {
   return {
@@ -81,5 +81,12 @@ describe('reducer de mensagens', () => {
 
     expect(afterEdit.conversation[0]).toMatchObject({ text: 'Atualizada.', edited: true });
     expect(afterDelete.conversation[0]).toMatchObject({ text: 'Atualizada.', deleted: true });
+  });
+
+  it('reconcilia uma resposta otimista com a confirmação do servidor sem duplicar', () => {
+    const optimistic = message('local-reply', { clientMessageId: 'client-reply' });
+    const confirmed = message('server-reply', { clientMessageId: 'client-reply' });
+
+    expect(mergeMessage([optimistic], confirmed)).toEqual([confirmed]);
   });
 });
