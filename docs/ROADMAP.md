@@ -9,8 +9,8 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 | 0 — Fundação e higiene                       | ✅ Concluído    | Shared package, validação Zod, qualidade e migração inicial configurados; CI aplicou migração e seed em PostgreSQL e confirmou a inicialização HTTP da API e da web. |
 | 1 — Design system e shell                    | ✅ Concluído    | Shell responsivo, tokens monocromáticos, três temas persistidos, rotas principais, componentes separados e Lighthouse de acessibilidade 100.                         |
 | 2 — Autenticação e perfil reais              | ✅ Concluído    | Cadastro, login, renovação rotativa, logout, recuperação e perfil testados com Argon2id, cookies seguros e rate limit.                                               |
-| 3 — Organização, equipes e canais            | 🚧 Em andamento | Workspace → equipes → canais, papéis e permissões de servidor; membros acessam apenas conteúdo autorizado.                                                           |
-| 4 — Mensageria completa                      | ⏳ Pendente     | Cursor, idempotência, edição, exclusão, threads, reações, menções, leitura e eventos em tempo real entre dois usuários.                                              |
+| 3 — Organização, equipes e canais            | ✅ Concluído    | Workspace → equipes → canais, convites, papéis e permissões de servidor validados com migração, testes integrados e smoke test no CI.                                |
+| 4 — Mensageria completa                      | 🚧 Em andamento | Cursor, idempotência, edição, exclusão, threads, reações, menções, leitura e eventos em tempo real entre dois usuários.                                              |
 | 5 — Chats 1:1 e em grupo                     | ⏳ Pendente     | Busca de pessoas, DMs idempotentes, grupos, participantes, silenciar e fixar; sem duplicação de conversas.                                                           |
 | 6 — Arquivos e anexos                        | ⏳ Pendente     | MinIO e StorageProvider com upload, preview e download autorizados, respeitando limites e tipos permitidos.                                                          |
 | 7 — Presença, Atividade e Notificações       | ⏳ Pendente     | Presença via Redis, feed, notificações e preferências consistentes entre instâncias.                                                                                 |
@@ -114,12 +114,14 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 
 ## Registro de execução
 
-### 2026-10-23 — Bloco 3 em andamento
+### 2026-10-23 — Bloco 3 concluído; Bloco 4 iniciado
 
-- **Status:** 🚧 Implementação concluída localmente; aguarda validação de integração com PostgreSQL no CI antes de fechar.
-- **Entregue no checkout:** modelo Prisma separado para equipe/canal e chat, migração que transfere canais, associações e mensagens antigas, criação automática do canal `geral`, papéis de workspace e autorização na API e nos sockets; convites de sete dias com token armazenado em hash e envio por `MailProvider`; gestão de equipe/canal/membros, entrada em equipes públicas e preferências individuais de fixar/ocultar; árvore de navegação e diálogos próprios, incluindo aceitação de convite após autenticação.
-- **Validação local parcial:** `npm run typecheck`, `npm run lint`, `npm run test` (24 aprovados; 3 testes de integração ignorados sem PostgreSQL local), `npm run build`, `npm run format:check`, `git diff --check` e `npm audit --audit-level=moderate` passaram; o audit encontrou zero vulnerabilidades. Uma verificação visual com API mockada cobriu cadastro, criação de equipe e canal e o destino do diálogo de convite. `docker` e `psql` não estão instalados no host; a migração, o seed e os testes integrados ainda precisam ser confirmados pelo CI.
-- **Próxima etapa:** enviar o bloco para que o CI valide migração, seed, autorização e inicialização; corrigir eventuais falhas antes de marcar o bloco como concluído.
+- **Status do Bloco 3:** ✅ Concluído e publicado em `main` nos commits `e033ff7` e `78b3fd3`.
+- **Entregue:** modelo Prisma separado para equipe/canal e chat; migração preservando canais, associações e mensagens antigas; criação automática do canal `geral`; papéis de workspace e autorização na API e nos sockets; convites de sete dias com token armazenado em hash e envio por `MailProvider`; gestão de equipe/canal/membros, entrada em equipes públicas e preferências individuais de fixar/ocultar; árvore de navegação e diálogos próprios, incluindo aceitação de convite após autenticação.
+- **Ajustes finais:** convite exibe o nome da equipe de destino; criação de canal navega usando os dados atualizados; admin não pode remover outro admin; teste de integração monta o roteador completo para verificar autorização dos endpoints de mensagens.
+- **Validação local:** `npm run build`, `npm run lint`, `npm run typecheck`, `npm run test` (24 aprovados; 3 testes de integração ignorados localmente sem PostgreSQL), `npm run format:check`, `git diff --check` e `npm audit --audit-level=moderate` passaram; zero vulnerabilidades. A verificação visual com API mockada cobriu cadastro, criação de equipe e canal e o diálogo de convite.
+- **CI #14:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39948022082), incluindo migração e testes integrados com PostgreSQL 17, build, seed e smoke test da API e web.
+- **Próximo bloco:** Bloco 4 — Mensageria completa. Implementar paginação por cursor e envio idempotente como primeira fatia, após revisar o estado atual das mensagens.
 
 ### 2026-10-22 — Bloco 0 concluído
 

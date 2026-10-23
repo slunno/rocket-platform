@@ -4,7 +4,7 @@ Plataforma de comunicação corporativa da AKR Brands, em português do Brasil. 
 
 ## Estado do projeto
 
-Os **Blocos 0 — Fundação e higiene**, **1 — Design system e shell da aplicação** e **2 — Autenticação e perfil reais** estão concluídos. O **Bloco 3 — Organização, equipes e canais** está em validação. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para o plano completo, critérios de aceite, status e pendências.
+Os **Blocos 0 — Fundação e higiene**, **1 — Design system e shell da aplicação**, **2 — Autenticação e perfil reais** e **3 — Organização, equipes e canais** estão concluídos. O **Bloco 4 — Mensageria completa** é a próxima etapa. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para o plano completo, critérios de aceite, status e pendências.
 
 ## Status dos blocos
 
@@ -13,8 +13,8 @@ Os **Blocos 0 — Fundação e higiene**, **1 — Design system e shell da aplic
 | 0 — Fundação e higiene                       | ✅ Concluído    |
 | 1 — Design system e shell                    | ✅ Concluído    |
 | 2 — Autenticação e perfil reais              | ✅ Concluído    |
-| 3 — Organização, equipes e canais            | 🚧 Em andamento |
-| 4 — Mensageria completa                      | ⏳ Pendente     |
+| 3 — Organização, equipes e canais            | ✅ Concluído    |
+| 4 — Mensageria completa                      | 🚧 Em andamento |
 | 5 — Chats 1:1 e em grupo                     | ⏳ Pendente     |
 | 6 — Arquivos e anexos                        | ⏳ Pendente     |
 | 7 — Presença, atividade e notificações       | ⏳ Pendente     |
