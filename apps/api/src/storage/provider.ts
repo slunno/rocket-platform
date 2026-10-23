@@ -38,6 +38,7 @@ export class S3StorageProvider {
       region: options.region,
       forcePathStyle: options.forcePathStyle,
       credentials: { accessKeyId: options.accessKey, secretAccessKey: options.secretKey },
+      requestChecksumCalculation: 'WHEN_REQUIRED',
       maxAttempts: 2,
     });
   }
