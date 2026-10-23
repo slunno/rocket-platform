@@ -12,7 +12,7 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 | 3 — Organização, equipes e canais            | ✅ Concluído    | Workspace → equipes → canais, convites, papéis e permissões de servidor validados com migração, testes integrados e smoke test no CI.                                  |
 | 4 — Mensageria completa                      | 🚧 Em andamento | Cursor, idempotência, edição, exclusão, threads, reações, menções, marcadores de leitura, contadores de não lidas e ressincronização; validação multiusuário pendente. |
 | 5 — Chats 1:1 e em grupo                     | 🚧 Em andamento | Busca de pessoas, DMs idempotentes, grupos com foto HTTPS, participantes, silenciar e fixar; sem duplicação de conversas.                                              |
-| 6 — Arquivos e anexos                        | 🚧 Em andamento | MinIO e StorageProvider com upload, preview e download autorizados, respeitando limites e tipos permitidos; código publicado, CI aguarda validação do serviço MinIO.   |
+| 6 — Arquivos e anexos                        | ✅ Concluído    | MinIO e StorageProvider com upload, preview e download autorizados, respeitando limites e tipos permitidos; testes integrados e CI completos passaram.                 |
 | 7 — Presença, Atividade e Notificações       | ⏳ Pendente     | Presença via Redis, feed, notificações e preferências consistentes entre instâncias.                                                                                   |
 | 8 — Busca                                    | ⏳ Pendente     | Busca PostgreSQL por mensagens, pessoas, canais e arquivos; resultados obedecem permissões.                                                                            |
 | 9 — Calendário e Reuniões                    | ⏳ Pendente     | Calendário, eventos e reuniões LiveKit com autorização, áudio/vídeo e compartilhamento entre participantes.                                                            |
@@ -149,9 +149,9 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 - **Desvio de ordem:** o Bloco 5 começou antes da conferência visual final do Bloco 4. A API do Bloco 4 já passou pelo CI #22; a falta de ambiente para duas sessões mantém sua verificação visual pendente enquanto o trabalho da lista de chats prossegue.
 - **Próxima etapa:** conferir criação de DM, criação de grupo, preferências e saída com duas contas pelo navegador integrado; depois fechar o Bloco 5 e retornar à conferência multiusuário do Bloco 4.
 
-### 2026-10-23 — Bloco 6 em andamento
+### 2026-10-23 — Bloco 6 concluído
 
-- **Status:** 🚧 implementação publicada em `main`; build, lint, typecheck, testes e auditoria passaram localmente. O CI #28 falhou ao baixar a imagem MinIO do registry; o workflow e o Compose agora apontam para a imagem pública de teste `bitnamilegacy/minio:2025.7.23` e precisam ser publicados/validados.
+- **Status:** ✅ implementação publicada em `main`; build, lint, typecheck, testes e auditoria passaram localmente. O CI #36 passou com PostgreSQL e MinIO, incluindo testes integrados, build, seed e smoke test.
 - **Entregue no checkout:** armazenamento S3 compatível com MinIO e configuração local/CI; upload direto com formulário pré-assinado, limite de 25 MiB por arquivo, até 10 anexos por mensagem, lista de tipos permitidos, nome sanitizado e verificação do conteúdo real antes da conclusão. Anexos são autorizados pela conversa/canal, `storageKey` não sai da API, downloads usam URL curta assinada e arquivos só aparecem depois de verificados. A interface aceita botão, arrastar, colar e progresso; mostra prévias/cartões e oferece busca/ordenação global e aba de arquivos do canal.
 - **Validação local:** `npm run build`, `npm run lint`, `npm run typecheck`, `npm test` (48 passaram; 3 testes de integração ignorados sem PostgreSQL local), `npm run format:check`, `git diff --check` e `npm audit --audit-level=moderate` passaram.
 - **CI #28:** falhou durante a inicialização do MinIO: `quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z` retornou `unauthorized`; migrações PostgreSQL passaram. O serviço local de teste foi trocado para `bitnamilegacy/minio:2025.7.23`; a imagem é antiga e sem atualizações, portanto deve ficar restrita ao desenvolvimento/CI.
@@ -161,9 +161,10 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 - **CI #33:** MinIO e o upload/download passaram; a integração revelou que a busca de arquivos do canal combinava o nome do arquivo com o texto da mensagem em vez de buscar por qualquer um dos campos. A consulta agora usa uma condição OR, com teste para nome e texto da mensagem.
 - **CI #34:** a busca de arquivos do canal passou; a paginação de mensagens foi medida após criar registros adicionais do próprio teste de anexos. A verificação de paginação foi movida para antes desses registros, mantendo o cenário de três mensagens isolado.
 - **CI #35:** a paginação isolada passou; a contagem antiga de mensagens raiz não incluía as duas mensagens com anexos criadas pelo teste. As expectativas agora incluem esses registros.
+- **CI #36:** passou por inteiro com PostgreSQL 17 e MinIO; upload, verificação de conteúdo, autorização, download e listagens integradas passaram, além das verificações de qualidade e smoke test.
 - **Limite funcional:** anexos em respostas de tópico são rejeitados explicitamente; o compositor de respostas não oferece envio de arquivo.
 - **Pendências anteriores:** os Blocos 4 e 5 seguem com a validação visual multiusuário pendente por falta de um ambiente web/API com duas contas; essa conferência permanece registrada como desvio de ordem.
-- **Próxima etapa:** validar no CI a busca de arquivos do canal e o fluxo integrado completo; corrigir qualquer falha restante.
+- **Próxima etapa:** iniciar o Bloco 7 com presença Redis por heartbeat/TTL e adapter Redis para Socket.IO; manter a conferência visual multiusuário dos Blocos 4 e 5 registrada para quando houver um ambiente com duas contas.
 
 ### 2026-10-22 — Bloco 0 concluído
 
