@@ -13,7 +13,7 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 | 4 — Mensageria completa                      | 🚧 Em andamento | Cursor, idempotência, edição, exclusão, threads, reações, menções, marcadores de leitura, contadores de não lidas e ressincronização; validação multiusuário pendente. |
 | 5 — Chats 1:1 e em grupo                     | 🚧 Em andamento | Busca de pessoas, DMs idempotentes, grupos com foto HTTPS, participantes, silenciar e fixar; sem duplicação de conversas.                                              |
 | 6 — Arquivos e anexos                        | ✅ Concluído    | MinIO e StorageProvider com upload, preview e download autorizados, respeitando limites e tipos permitidos; testes integrados e CI completos passaram.                 |
-| 7 — Presença, Atividade e Notificações       | 🚧 Em andamento | Adapter Redis e presença por heartbeat/TTL em implementação; feed, notificações e preferências seguem pendentes.                                                       |
+| 7 — Presença, Atividade e Notificações       | 🚧 Em andamento | Adapter Redis e presença por heartbeat/TTL validados no CI; feed, notificações e preferências seguem pendentes.                                                        |
 | 8 — Busca                                    | ⏳ Pendente     | Busca PostgreSQL por mensagens, pessoas, canais e arquivos; resultados obedecem permissões.                                                                            |
 | 9 — Calendário e Reuniões                    | ⏳ Pendente     | Calendário, eventos e reuniões LiveKit com autorização, áudio/vídeo e compartilhamento entre participantes.                                                            |
 | 10 — Abas de canal e produtividade           | ⏳ Pendente     | Abas configuráveis de publicações, arquivos, notas e tarefas, com itens salvos/pinados persistidos.                                                                    |
@@ -170,8 +170,9 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 
 - **Status:** 🚧 presença distribuída em implementação; feed de atividade, notificações e preferências ainda pendentes.
 - **Entregue no checkout:** adapter Redis para Socket.IO; heartbeat autenticado a cada 20 segundos com TTL de 60 segundos, controle de múltiplos sockets por usuário, transições online/offline e snapshot inicial limitado a conversas, canais privados e equipes com canais públicos autorizados.
-- **Validação local:** lint, format check, typecheck, build, 49 testes e `npm audit --audit-level=moderate` passaram. Cinco testes de integração foram ignorados sem PostgreSQL/Redis local; o CI os executará com os serviços configurados. A leitura visual da aba `127.0.0.1:5181` foi bloqueada pela política do navegador integrado.
-- **Próxima etapa:** validar o snapshot autorizado e as transições de presença pelo CI; depois implementar atividade/notificações com preferências e fila BullMQ.
+- **Validação local:** lint, format check, typecheck, build, 49 testes e `npm audit --audit-level=moderate` passaram. Cinco testes de integração foram ignorados sem PostgreSQL/Redis local. A leitura visual da aba `127.0.0.1:5181` foi bloqueada pela política do navegador integrado.
+- **CI #38:** passou por lint, formatação, typecheck, migração PostgreSQL, testes de integração com Redis, build, seed e smoke test.
+- **Próxima etapa:** implementar feed de atividade, notificações e preferências, usando BullMQ sobre Redis para entregas assíncronas.
 
 ### 2026-10-22 — Bloco 0 concluído
 

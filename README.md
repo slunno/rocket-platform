@@ -4,7 +4,7 @@ Plataforma de comunicação corporativa da AKR Brands, em português do Brasil. 
 
 ## Estado do projeto
 
-Os **Blocos 0 a 3 e 6** estão concluídos. Os **Blocos 4 e 5** têm implementação e CI concluídos, mas ainda aguardam conferência visual entre duas contas pelo navegador integrado. O **Bloco 7 — Presença, atividade e notificações** está em andamento; adapter Redis, heartbeat/TTL e snapshot de presença autorizada estão sendo implementados. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para critérios, status e pendências.
+Os **Blocos 0 a 3 e 6** estão concluídos. Os **Blocos 4 e 5** têm implementação e CI concluídos, mas ainda aguardam conferência visual entre duas contas pelo navegador integrado. No **Bloco 7 — Presença, atividade e notificações**, presença distribuída com Redis, heartbeat/TTL e snapshot limitado a membros autorizados passaram no CI; feed de atividade, notificações e preferências seguem em implementação. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para critérios, status e pendências.
 
 ## Status dos blocos
 
