@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_ATTACHMENT_SIZE_BYTES } from '@rocket/shared';
 
 export const envSchema = z
   .object({
@@ -24,6 +25,21 @@ export const envSchema = z
       .transform((value) => value === 'true'),
     SMTP_USER: z.string().optional(),
     SMTP_PASSWORD: z.string().optional(),
+    STORAGE_ENDPOINT: z.string().url().default('http://localhost:9000'),
+    STORAGE_REGION: z.string().trim().min(1).default('us-east-1'),
+    STORAGE_BUCKET: z.string().trim().min(3).max(63).default('rocket-attachments'),
+    STORAGE_ACCESS_KEY: z.string().trim().min(3).default('rocket-minio'),
+    STORAGE_SECRET_KEY: z.string().min(8).default('rocket-minio-secret'),
+    STORAGE_FORCE_PATH_STYLE: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
+    STORAGE_MAX_FILE_SIZE_BYTES: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_ATTACHMENT_SIZE_BYTES)
+      .default(MAX_ATTACHMENT_SIZE_BYTES),
     API_PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
     WEB_ORIGIN: z.string().url().default('http://localhost:5173'),
   })
@@ -53,6 +69,18 @@ export const envSchema = z
         code: 'custom',
         path: ['MAIL_PROVIDER'],
         message: 'Configure um provedor SMTP de e-mail em produção.',
+      });
+    }
+    if (
+      env.NODE_ENV === 'production' &&
+      (env.STORAGE_ENDPOINT === 'http://localhost:9000' ||
+        env.STORAGE_ACCESS_KEY === 'rocket-minio' ||
+        env.STORAGE_SECRET_KEY === 'rocket-minio-secret')
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['STORAGE_ENDPOINT'],
+        message: 'Configure um serviço S3 e credenciais próprias em produção.',
       });
     }
     if (env.MAIL_PROVIDER === 'smtp') {

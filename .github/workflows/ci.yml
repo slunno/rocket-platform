@@ -13,6 +13,9 @@ jobs:
       JWT_SECRET: ci-secret-with-at-least-32-characters
       DEMO_AUTH_ENABLED: 'true'
       AUTH_INTEGRATION_TESTS: 'true'
+      STORAGE_ENDPOINT: http://localhost:9000
+      STORAGE_ACCESS_KEY: rocket-minio
+      STORAGE_SECRET_KEY: rocket-minio-secret
     services:
       postgres:
         image: postgres:17-alpine
@@ -38,6 +41,21 @@ jobs:
       - run: npm run format:check
       - run: npm run typecheck
       - run: npm run db:migrate:deploy
+      - name: Start MinIO
+        run: |
+          docker run -d --name rocket-minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=rocket-minio \
+            -e MINIO_ROOT_PASSWORD=rocket-minio-secret \
+            quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z \
+            server /data --console-address ":9001"
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://localhost:9000/minio/health/live >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs rocket-minio
+          exit 1
       - run: npm run test
       - run: npm run build
       - run: npm run db:seed
@@ -55,3 +73,5 @@ jobs:
           cat /tmp/rocket-dev.log
           grep -q '"status":"ok","database":"connected"' /tmp/rocket-health.json
           grep -qi 'Rocket' /tmp/rocket-web.html
+      - if: always()
+        run: docker rm -f rocket-minio >/dev/null 2>&1 || true

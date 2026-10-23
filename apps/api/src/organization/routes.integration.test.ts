@@ -173,6 +173,176 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
     expect(secondMessage.status).toBe(201);
     expect(thirdMessage.status).toBe(201);
 
+    const pdfBytes = Uint8Array.from(Buffer.from('%PDF-1.7\nRocket test file\n'));
+    const attachmentResponse = await request(
+      'POST',
+      `/channels/${publicChannel.id}/messages`,
+      owner.accessToken,
+      {
+        text: 'Documento da coleção.',
+        clientMessageId: randomUUID(),
+        attachments: [
+          { fileName: 'pedido.pdf', mimeType: 'application/pdf', sizeBytes: pdfBytes.byteLength },
+        ],
+      },
+    );
+    expect(attachmentResponse.status).toBe(201);
+    const attachmentMessage = (await attachmentResponse.json()) as {
+      id: string;
+      attachments: { id: string; uploadedAt: string | null; storageKey?: string }[];
+      uploads: { attachmentId: string; url: string; fields: Record<string, string> }[];
+    };
+    const pendingAttachment = attachmentMessage.attachments[0]!;
+    const uploadForm = new FormData();
+    for (const [key, value] of Object.entries(attachmentMessage.uploads[0]!.fields))
+      uploadForm.append(key, value);
+    uploadForm.append('file', new Blob([pdfBytes], { type: 'application/pdf' }), 'pedido.pdf');
+    const rawUpload = await fetch(attachmentMessage.uploads[0]!.url, {
+      method: 'POST',
+      body: uploadForm,
+    });
+    expect(rawUpload.status).toBe(204);
+    expect(pendingAttachment.uploadedAt).toBeNull();
+    expect(pendingAttachment.storageKey).toBeUndefined();
+    expect(
+      (await request('GET', `/attachments/${pendingAttachment.id}/download-url`, guest.accessToken))
+        .status,
+    ).not.toBe(200);
+    expect(
+      (await request('POST', `/attachments/${pendingAttachment.id}/complete`, guest.accessToken))
+        .status,
+    ).not.toBe(200);
+    const completedAttachment = await request(
+      'POST',
+      `/attachments/${pendingAttachment.id}/complete`,
+      owner.accessToken,
+    );
+    expect(completedAttachment.status).toBe(200);
+    expect(
+      ((await completedAttachment.json()) as { uploadedAt: string | null }).uploadedAt,
+    ).toEqual(expect.any(String));
+    expect(
+      (await request('GET', `/attachments/${pendingAttachment.id}/download-url`, guest.accessToken))
+        .status,
+    ).not.toBe(200);
+    const downloadResponse = await request(
+      'GET',
+      `/attachments/${pendingAttachment.id}/download-url?disposition=inline`,
+      owner.accessToken,
+    );
+    expect(downloadResponse.status).toBe(200);
+    const download = (await downloadResponse.json()) as { url: string; expiresIn: number };
+    expect(download.expiresIn).toBe(300);
+    const downloadedFile = await fetch(download.url);
+    expect(downloadedFile.status).toBe(200);
+    expect(new Uint8Array(await downloadedFile.arrayBuffer())).toEqual(pdfBytes);
+
+    const globalFilesResponse = await request(
+      'GET',
+      '/files?query=pedido&sortBy=name',
+      owner.accessToken,
+    );
+    const globalFiles = (await globalFilesResponse.json()) as {
+      items: { id: string; fileName: string; storageKey?: string }[];
+      total: number;
+    };
+    expect(globalFilesResponse.status).toBe(200);
+    expect(globalFiles.items).toEqual([
+      expect.objectContaining({ id: pendingAttachment.id, fileName: 'pedido.pdf' }),
+    ]);
+    expect(globalFiles.items[0]?.storageKey).toBeUndefined();
+    const channelFilesResponse = await request(
+      'GET',
+      `/channels/${publicChannel.id}/files?query=pedido`,
+      owner.accessToken,
+    );
+    const channelFiles = (await channelFilesResponse.json()) as {
+      items: { id: string; fileName: string }[];
+    };
+    expect(channelFilesResponse.status).toBe(200);
+    expect(channelFiles.items).toEqual([
+      expect.objectContaining({ id: pendingAttachment.id, fileName: 'pedido.pdf' }),
+    ]);
+    const guestFilesResponse = await request('GET', '/files?query=pedido', guest.accessToken);
+    expect(((await guestFilesResponse.json()) as { items: { id: string }[] }).items).toHaveLength(
+      0,
+    );
+
+    const privateFileBytes = Uint8Array.from(Buffer.from('%PDF-1.7\nPrivate planning\n'));
+    const privateFileMessageResponse = await request(
+      'POST',
+      `/channels/${privateChannel.id}/messages`,
+      owner.accessToken,
+      {
+        text: 'Planejamento interno.',
+        clientMessageId: randomUUID(),
+        attachments: [
+          {
+            fileName: 'planejamento.pdf',
+            mimeType: 'application/pdf',
+            sizeBytes: privateFileBytes.byteLength,
+          },
+        ],
+      },
+    );
+    expect(privateFileMessageResponse.status).toBe(201);
+    const privateFileMessage = (await privateFileMessageResponse.json()) as {
+      attachments: { id: string }[];
+      uploads: { url: string; fields: Record<string, string> }[];
+    };
+    const privateUploadForm = new FormData();
+    for (const [key, value] of Object.entries(privateFileMessage.uploads[0]!.fields))
+      privateUploadForm.append(key, value);
+    privateUploadForm.append(
+      'file',
+      new Blob([privateFileBytes], { type: 'application/pdf' }),
+      'planejamento.pdf',
+    );
+    expect(
+      (
+        await fetch(privateFileMessage.uploads[0]!.url, {
+          method: 'POST',
+          body: privateUploadForm,
+        })
+      ).status,
+    ).toBe(204);
+    const privateAttachmentId = privateFileMessage.attachments[0]!.id;
+    expect(
+      (await request('POST', `/attachments/${privateAttachmentId}/complete`, owner.accessToken))
+        .status,
+    ).toBe(200);
+
+    const spoofedResponse = await request(
+      'POST',
+      `/channels/${publicChannel.id}/messages`,
+      owner.accessToken,
+      {
+        text: 'Arquivo com conteúdo divergente.',
+        clientMessageId: randomUUID(),
+        attachments: [{ fileName: 'falso.pdf', mimeType: 'application/pdf', sizeBytes: 4 }],
+      },
+    );
+    expect(spoofedResponse.status).toBe(201);
+    const spoofedMessage = (await spoofedResponse.json()) as {
+      attachments: { id: string }[];
+      uploads: { url: string; fields: Record<string, string> }[];
+    };
+    const spoofedForm = new FormData();
+    for (const [key, value] of Object.entries(spoofedMessage.uploads[0]!.fields))
+      spoofedForm.append(key, value);
+    spoofedForm.append('file', new Blob(['nope'], { type: 'application/pdf' }), 'falso.pdf');
+    const spoofedUpload = await fetch(spoofedMessage.uploads[0]!.url, {
+      method: 'POST',
+      body: spoofedForm,
+    });
+    expect(spoofedUpload.status).toBe(204);
+    const rejectedSpoof = await request(
+      'POST',
+      `/attachments/${spoofedMessage.attachments[0]!.id}/complete`,
+      owner.accessToken,
+    );
+    expect(rejectedSpoof.status).toBe(400);
+
     const recentMessagesResponse = await request(
       'GET',
       `/channels/${publicChannel.id}/messages?limit=2`,
@@ -554,6 +724,18 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
       ).status,
     ).toBe(403);
     expect((await request('POST', `/teams/${team.id}/join`, member.accessToken)).status).toBe(204);
+    const privateFilesForTeamMember = await request(
+      'GET',
+      '/files?query=planejamento',
+      member.accessToken,
+    );
+    expect(((await privateFilesForTeamMember.json()) as { items: { id: string }[] }).items).toEqual(
+      [],
+    );
+    expect(
+      (await request('GET', `/attachments/${privateAttachmentId}/download-url`, member.accessToken))
+        .status,
+    ).not.toBe(200);
     await prisma.teamMember.update({
       where: { teamId_userId: { teamId: team.id, userId: memberId } },
       data: { joinedAt: new Date() },

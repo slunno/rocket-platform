@@ -53,6 +53,38 @@ describe('configuração da API', () => {
     expect(result.success).toBe(false);
   });
 
+  it('exige endpoint e credenciais de storage próprios em produção', () => {
+    const result = envSchema.safeParse({
+      ...validEnvironment,
+      NODE_ENV: 'production',
+      JWT_SECRET: 'production-secret-with-at-least-32-characters',
+      DEMO_AUTH_ENABLED: 'false',
+      MAIL_PROVIDER: 'smtp',
+      MAIL_FROM: 'Rocket <noreply@example.com>',
+      SMTP_HOST: 'smtp.example.com',
+      SMTP_USER: 'rocket',
+      SMTP_PASSWORD: 'smtp-secret',
+      STORAGE_ENDPOINT: 'https://s3.example.com',
+      STORAGE_ACCESS_KEY: 'production-access',
+      STORAGE_SECRET_KEY: 'production-storage-secret',
+    });
+
+    expect(result.success).toBe(true);
+    expect(
+      envSchema.safeParse({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        JWT_SECRET: 'production-secret-with-at-least-32-characters',
+        DEMO_AUTH_ENABLED: 'false',
+        MAIL_PROVIDER: 'smtp',
+        MAIL_FROM: 'Rocket <noreply@example.com>',
+        SMTP_HOST: 'smtp.example.com',
+        SMTP_USER: 'rocket',
+        SMTP_PASSWORD: 'smtp-secret',
+      }).success,
+    ).toBe(false);
+  });
+
   it('aceita a configuração SMTP completa em produção', () => {
     const result = envSchema.safeParse({
       ...validEnvironment,
@@ -66,6 +98,9 @@ describe('configuração da API', () => {
       SMTP_SECURE: 'true',
       SMTP_USER: 'rocket',
       SMTP_PASSWORD: 'smtp-secret',
+      STORAGE_ENDPOINT: 'https://s3.example.com',
+      STORAGE_ACCESS_KEY: 'production-access',
+      STORAGE_SECRET_KEY: 'production-storage-secret',
     });
 
     expect(result.success).toBe(true);

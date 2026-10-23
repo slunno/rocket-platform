@@ -296,6 +296,7 @@ model Attachment {
   mimeType   String
   sizeBytes  BigInt
   storageKey String
+  uploadedAt DateTime?
   createdAt  DateTime @default(now())
   message    Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
 

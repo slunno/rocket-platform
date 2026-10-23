@@ -19,6 +19,20 @@ services:
     volumes:
       - rocket-redis:/data
 
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY:?Defina STORAGE_ACCESS_KEY no arquivo .env}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY:?Defina STORAGE_SECRET_KEY no arquivo .env}
+    ports:
+      - '127.0.0.1:9000:9000'
+      - '127.0.0.1:9001:9001'
+    volumes:
+      - rocket-minio:/data
+
 volumes:
   rocket-postgres:
   rocket-redis:
+  rocket-minio:

@@ -9,6 +9,7 @@ import {
   channelCreateInputSchema,
   channelPreferenceInputSchema,
   memberInputSchema,
+  fileListQuerySchema,
   profileUpdateInputSchema,
   registerInputSchema,
   teamCreateInputSchema,
@@ -30,6 +31,22 @@ describe('contratos compartilhados', () => {
     expect(messageInputSchema.safeParse({ text: 'a'.repeat(10_001) }).success).toBe(false);
   });
 
+  it('permite mensagem composta só por anexos, respeitando tipo e tamanho', () => {
+    expect(
+      messageInputSchema.safeParse({
+        text: '',
+        attachments: [{ fileName: 'colecao.png', mimeType: 'image/png', sizeBytes: 1024 }],
+      }).success,
+    ).toBe(true);
+    expect(messageInputSchema.safeParse({ text: '', attachments: [] }).success).toBe(false);
+    expect(
+      messageInputSchema.safeParse({
+        text: '',
+        attachments: [{ fileName: 'script.svg', mimeType: 'image/svg+xml', sizeBytes: 100 }],
+      }).success,
+    ).toBe(false);
+  });
+
   it('valida paginação de mensagens por cursor', () => {
     expect(paginationQuerySchema.parse({ cursor: 'msg-anterior' })).toEqual({
       limit: 50,
@@ -37,6 +54,15 @@ describe('contratos compartilhados', () => {
     });
     expect(paginationQuerySchema.safeParse({ limit: 101 }).success).toBe(false);
     expect(paginationQuerySchema.safeParse({ cursor: ' ' }).success).toBe(false);
+  });
+
+  it('valida busca e ordenação de arquivos', () => {
+    expect(fileListQuerySchema.parse({ query: '  look  ', sortBy: 'size' })).toEqual({
+      query: 'look',
+      sortBy: 'size',
+      limit: 50,
+    });
+    expect(fileListQuerySchema.safeParse({ sortBy: 'unknown' }).success).toBe(false);
   });
 
   it('valida conteúdo de edição e reações', () => {

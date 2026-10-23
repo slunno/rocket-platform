@@ -7,10 +7,37 @@ export const apiErrorSchema = z.object({
   }),
 });
 
-export const messageInputSchema = z.object({
-  text: z.string().trim().min(1).max(10_000),
-  clientMessageId: z.string().uuid().optional(),
+export const MAX_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024;
+export const MAX_ATTACHMENTS_PER_MESSAGE = 10;
+
+export const attachmentInputSchema = z.object({
+  fileName: z.string().trim().min(1).max(255),
+  mimeType: z.enum([
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'application/pdf',
+    'text/plain',
+  ]),
+  sizeBytes: z.number().int().min(1).max(MAX_ATTACHMENT_SIZE_BYTES),
 });
+
+export const messageInputSchema = z
+  .object({
+    text: z.string().trim().max(10_000).default(''),
+    clientMessageId: z.string().uuid().optional(),
+    attachments: z.array(attachmentInputSchema).max(MAX_ATTACHMENTS_PER_MESSAGE).default([]),
+  })
+  .superRefine(({ text, attachments }, context) => {
+    if (!text && attachments.length === 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['text'],
+        message: 'Escreva uma mensagem ou anexe um arquivo.',
+      });
+    }
+  });
 
 export const messageUpdateInputSchema = z.object({
   text: z.string().trim().min(1).max(10_000),
@@ -169,6 +196,7 @@ export const socketEvents = {
   typing: 'typing',
   readUpdated: 'read:updated',
   conversationUpdated: 'conversation:updated',
+  attachmentReady: 'attachment:ready',
 } as const;
 
 export const paginationQuerySchema = z.object({
@@ -176,8 +204,19 @@ export const paginationQuerySchema = z.object({
   cursor: z.string().trim().min(1).max(128).optional(),
 });
 
+export const fileListQuerySchema = z.object({
+  query: z.string().trim().max(100).default(''),
+  sortBy: z.enum(['recent', 'name', 'size']).default('recent'),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+export const attachmentDownloadQuerySchema = z.object({
+  disposition: z.enum(['inline', 'attachment']).default('attachment'),
+});
+
 export type ApiError = z.infer<typeof apiErrorSchema>;
 export type MessageInput = z.infer<typeof messageInputSchema>;
+export type AttachmentInput = z.infer<typeof attachmentInputSchema>;
 export type MessageUpdateInput = z.infer<typeof messageUpdateInputSchema>;
 export type ReactionInput = z.infer<typeof reactionInputSchema>;
 export type TypingInput = z.infer<typeof typingInputSchema>;
@@ -185,6 +224,8 @@ export type UserSummary = z.infer<typeof userSummarySchema>;
 export type RegisterInput = z.infer<typeof registerInputSchema>;
 export type LoginInput = z.infer<typeof loginInputSchema>;
 export type PaginationQuery = z.infer<typeof paginationQuerySchema>;
+export type FileListQuery = z.infer<typeof fileListQuerySchema>;
+export type AttachmentDownloadQuery = z.infer<typeof attachmentDownloadQuerySchema>;
 export type ProfileUpdateInput = z.infer<typeof profileUpdateInputSchema>;
 export type WorkspaceCreateInput = z.infer<typeof workspaceCreateInputSchema>;
 export type WorkspaceUpdateInput = z.infer<typeof workspaceUpdateInputSchema>;
