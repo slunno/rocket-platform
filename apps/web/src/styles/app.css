@@ -949,6 +949,47 @@ kbd {
   overflow-wrap: anywhere;
 }
 
+.message-deleted,
+.message-edited {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.message-edit-form textarea {
+  width: min(100%, 580px);
+  min-height: 70px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  background: var(--surface-base);
+  font: inherit;
+  resize: vertical;
+}
+
+.message-edit-form > div,
+.reaction-picker {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.message-edit-form button,
+.reaction-picker button,
+.message-action-menu button {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-primary);
+  background: var(--surface-base);
+  cursor: pointer;
+}
+
+.reaction-picker button {
+  min-width: 32px;
+  font-size: 16px;
+}
+
 .reaction-row,
 .composer-tools,
 .composer-submit-area {
@@ -1032,6 +1073,21 @@ kbd {
   right: 8px;
   display: none;
   padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-base);
+  box-shadow: var(--shadow-soft);
+}
+
+.message-action-menu {
+  position: absolute;
+  z-index: 2;
+  top: 22px;
+  right: 0;
+  display: grid;
+  min-width: 104px;
+  gap: 4px;
+  padding: 5px;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--surface-base);

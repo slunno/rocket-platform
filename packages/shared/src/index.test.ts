@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   loginInputSchema,
   messageInputSchema,
+  messageUpdateInputSchema,
   paginationQuerySchema,
+  reactionInputSchema,
   channelCreateInputSchema,
   channelPreferenceInputSchema,
   memberInputSchema,
@@ -34,6 +36,13 @@ describe('contratos compartilhados', () => {
     });
     expect(paginationQuerySchema.safeParse({ limit: 101 }).success).toBe(false);
     expect(paginationQuerySchema.safeParse({ cursor: ' ' }).success).toBe(false);
+  });
+
+  it('valida conteúdo de edição e reações', () => {
+    expect(messageUpdateInputSchema.parse({ text: '  Corrigida.  ' }).text).toBe('Corrigida.');
+    expect(messageUpdateInputSchema.safeParse({ text: ' ' }).success).toBe(false);
+    expect(reactionInputSchema.parse({ emoji: ' 👍 ' }).emoji).toBe('👍');
+    expect(reactionInputSchema.safeParse({ emoji: '' }).success).toBe(false);
   });
 
   it('valida os campos básicos de perfil retornados pela API', () => {

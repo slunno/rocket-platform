@@ -12,6 +12,14 @@ export const messageInputSchema = z.object({
   clientMessageId: z.string().uuid().optional(),
 });
 
+export const messageUpdateInputSchema = z.object({
+  text: z.string().trim().min(1).max(10_000),
+});
+
+export const reactionInputSchema = z.object({
+  emoji: z.string().trim().min(1).max(32),
+});
+
 export const userSummarySchema = z.object({
   id: z.string(),
   username: z.string(),
@@ -127,6 +135,8 @@ export const paginationQuerySchema = z.object({
 
 export type ApiError = z.infer<typeof apiErrorSchema>;
 export type MessageInput = z.infer<typeof messageInputSchema>;
+export type MessageUpdateInput = z.infer<typeof messageUpdateInputSchema>;
+export type ReactionInput = z.infer<typeof reactionInputSchema>;
 export type UserSummary = z.infer<typeof userSummarySchema>;
 export type RegisterInput = z.infer<typeof registerInputSchema>;
 export type LoginInput = z.infer<typeof loginInputSchema>;

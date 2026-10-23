@@ -126,9 +126,10 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 ### 2026-10-23 — Bloco 4 em andamento
 
 - **Status:** 🚧 Primeira fatia implementada no checkout; validação do banco e publicação ainda pendentes.
-- **Entregue nesta fatia:** histórico de canais e conversas com páginas por cursor estável, indicação `nextCursor`, carregamento das páginas anteriores sem perder a posição de rolagem; mensagens com `clientMessageId` UUID único por autor e conversa/canal; retries retornam a mensagem existente. O reducer substitui o envio otimista pelo registro confirmado e evita duplicatas ao mesclar páginas e eventos do socket.
-- **Validação local:** build, lint, typecheck, format check, 28 testes aprovados, audit sem vulnerabilidades e `git diff --check`; 3 testes de integração PostgreSQL são ignorados localmente porque o host não tem banco. O teste integrado cobre retries, cursor entre páginas, IDs distintos e escopo do cursor e será exercitado no CI.
-- **Próxima etapa:** confirmar migração e integração no CI; depois implementar edição/exclusão e eventos correspondentes, mantendo o aceite do Bloco 4 aberto.
+- **Entregue:** histórico de canais e conversas com páginas por cursor estável, indicação `nextCursor`, carregamento das páginas anteriores sem perder a posição de rolagem; mensagens com `clientMessageId` UUID único por autor e conversa/canal; retries retornam a mensagem existente. O reducer substitui o envio otimista pelo registro confirmado e evita duplicatas ao mesclar páginas e eventos do socket. Edição e exclusão respeitam autoria; exclusão é lógica; reações são idempotentes, exibem participantes e atualizam as salas por socket.
+- **Validação local:** build, lint, typecheck, format check, 30 testes aprovados, audit sem vulnerabilidades e `git diff --check`; 3 testes de integração PostgreSQL são ignorados localmente porque o host não tem banco. A paginação e idempotência integrada passaram no CI #16; edição, exclusão e reações estão aguardando essa execução integrada.
+- **CI #16:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39949362891), incluindo migração, teste integrado de paginação/retries, build, seed e smoke test.
+- **Próxima etapa:** validar edição, exclusão e reações no CI; depois implementar threads, menções, Markdown sanitizado, não lidas, digitação e ressincronização de socket.
 
 ### 2026-10-22 — Bloco 0 concluído
 

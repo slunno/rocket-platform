@@ -10,7 +10,12 @@ export type Person = {
   statusMessage?: string | null;
 };
 
-export type Reaction = { emoji: string; count: number; active?: boolean };
+export type Reaction = {
+  emoji: string;
+  count: number;
+  active?: boolean;
+  users?: string[];
+};
 
 export type Message = {
   id: string;
@@ -20,6 +25,8 @@ export type Message = {
   time: string;
   date: string;
   mine?: boolean;
+  edited?: boolean;
+  deleted?: boolean;
   reactions?: Reaction[];
   replyCount?: number;
 };

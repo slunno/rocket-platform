@@ -54,3 +54,12 @@ Todas as rotas abaixo usam o prefixo `/api`. Rotas de organização exigem `Auth
 `GET /conversations`, `GET /conversations/:conversationId/messages` e `POST /conversations/:conversationId/messages` permanecem reservadas a conversas `DIRECT` e `GROUP`. Canais usam `channelId` e as rotas dedicadas acima.
 
 As rotas de mensagens recebem `limit` (1–100, padrão 50) e um `cursor` opcional identificado pela mensagem mais antiga da página atual. A resposta de listagem contém `{ "items": [...], "nextCursor": "..." }`; `nextCursor` é `null` quando não há mensagens anteriores. Envios podem incluir `clientMessageId` UUID, único por pessoa e conversa/canal, para retries retornarem a mesma mensagem em vez de criar uma duplicata.
+
+## Mensagens e reações
+
+| Método e rota                                  | Ação                                                                      | Acesso                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------- |
+| `PATCH /messages/:messageId`                   | Edita texto e marca a mensagem como editada.                              | Autoria da mensagem                       |
+| `DELETE /messages/:messageId`                  | Define `deletedAt` sem apagar o registro e notifica a sala em tempo real. | Autoria da mensagem                       |
+| `PUT /messages/:messageId/reactions`           | Adiciona uma reação idempotente; resposta lista quem reagiu.              | Participante autorizado da conversa/canal |
+| `DELETE /messages/:messageId/reactions/:emoji` | Remove a reação da pessoa autenticada.                                    | Participante autorizado da conversa/canal |

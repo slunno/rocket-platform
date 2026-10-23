@@ -13,6 +13,7 @@ import { Check } from 'lucide-react';
 import { me as demoMe } from '../../demoData';
 import {
   addChannelMember,
+  addMessageReaction,
   addTeamMember,
   archiveChannel,
   archiveTeam,
@@ -21,6 +22,8 @@ import {
   createTeam,
   createWorkspace,
   createWorkspaceInvite,
+  deleteMessage,
+  editMessage,
   getChannelMembers,
   getChannelMessages,
   getConversations,
@@ -33,6 +36,7 @@ import {
   mapRemoteMessage,
   mapRemotePerson,
   removeChannelMember,
+  removeMessageReaction,
   removeWorkspaceMember,
   removeTeamMember,
   sendChannelMessage,
@@ -254,6 +258,38 @@ export function ChatPage() {
         message: normalized,
       });
     });
+    socket.on('message:updated', (message: Parameters<typeof mapRemoteMessage>[0]) => {
+      const parentId = message.conversationId ?? message.channelId ?? '';
+      if (!parentId) return;
+      dispatchMessage({
+        type: 'message-updated',
+        conversationId: parentId,
+        message: mapRemoteMessage(message, myIdRef.current),
+      });
+    });
+    socket.on(
+      'message:deleted',
+      (message: { id: string; conversationId?: string; channelId?: string }) => {
+        const parentId = message.conversationId ?? message.channelId ?? '';
+        if (!parentId) return;
+        dispatchMessage({
+          type: 'message-deleted',
+          conversationId: parentId,
+          messageId: message.id,
+        });
+      },
+    );
+    const handleReactionChanged = (message: Parameters<typeof mapRemoteMessage>[0]) => {
+      const parentId = message.conversationId ?? message.channelId ?? '';
+      if (!parentId) return;
+      dispatchMessage({
+        type: 'message-updated',
+        conversationId: parentId,
+        message: mapRemoteMessage(message, myIdRef.current),
+      });
+    };
+    socket.on('reaction:added', handleReactionChanged);
+    socket.on('reaction:removed', handleReactionChanged);
     return () => {
       socket.disconnect();
       socketRef.current = null;
@@ -405,6 +441,66 @@ export function ChatPage() {
         });
         showToast('Não foi possível enviar a mensagem. Confira sua conexão e tente novamente.');
       }
+    }
+  };
+
+  const handleEditMessage = async (messageId: string, nextText: string) => {
+    const currentMessage = activeMessages.find((message) => message.id === messageId);
+    if (!currentMessage || !active) return false;
+    if (!token) {
+      dispatchMessage({
+        type: 'message-updated',
+        conversationId: active.id,
+        message: { ...currentMessage, text: nextText.trim(), edited: true },
+      });
+      return true;
+    }
+    try {
+      const updated = await editMessage(token, messageId, nextText);
+      const parentId = updated.conversationId ?? updated.channelId ?? active.id;
+      dispatchMessage({
+        type: 'message-updated',
+        conversationId: parentId,
+        message: mapRemoteMessage(updated, me.id),
+      });
+      return true;
+    } catch {
+      showToast('Não foi possível editar a mensagem.');
+      return false;
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!active) return;
+    try {
+      if (token) await deleteMessage(token, messageId);
+      dispatchMessage({
+        type: 'message-deleted',
+        conversationId: active.id,
+        messageId,
+      });
+    } catch {
+      showToast('Não foi possível excluir a mensagem.');
+    }
+  };
+
+  const handleToggleReaction = async (messageId: string, emoji: string, isActive: boolean) => {
+    if (!token) {
+      showToast('Entre na sua conta para reagir à mensagem.');
+      return;
+    }
+    try {
+      const updated = isActive
+        ? await removeMessageReaction(token, messageId, emoji)
+        : await addMessageReaction(token, messageId, emoji);
+      const parentId = updated.conversationId ?? updated.channelId ?? activeId;
+      dispatchMessage({
+        type: 'message-updated',
+        conversationId: parentId,
+        message: mapRemoteMessage(updated, me.id),
+      });
+    } catch {
+      showToast('Não foi possível atualizar a reação.');
     }
   };
 
@@ -648,6 +744,9 @@ export function ChatPage() {
                 me={me}
                 onShowDetails={() => setShowDetails(true)}
                 onToast={showToast}
+                onToggleReaction={handleToggleReaction}
+                onEditMessage={handleEditMessage}
+                onDeleteMessage={handleDeleteMessage}
               />
               <MessageComposer
                 activeName={active.name}

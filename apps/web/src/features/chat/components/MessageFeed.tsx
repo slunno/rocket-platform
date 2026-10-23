@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { Hash, MessageCircle, MoreHorizontal, Plus, Smile } from 'lucide-react';
 import { Avatar } from '../../../components/ui/Avatar';
 import type { Conversation, Message, Person } from '../../../types';
@@ -17,6 +17,9 @@ export function MessageFeed({
   me,
   onShowDetails,
   onToast,
+  onToggleReaction,
+  onEditMessage,
+  onDeleteMessage,
 }: {
   active: Conversation;
   isChannel: boolean;
@@ -29,12 +32,19 @@ export function MessageFeed({
   me: Person;
   onShowDetails: () => void;
   onToast: (message: string) => void;
+  onToggleReaction: (messageId: string, emoji: string, active: boolean) => Promise<void>;
+  onEditMessage: (messageId: string, text: string) => Promise<boolean>;
+  onDeleteMessage: (messageId: string) => Promise<void>;
 }) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isLoadingRef = useRef(false);
   const pendingScrollRef = useRef<{ conversationId: string; height: number; top: number } | null>(
     null,
   );
+  const [reactionMessageId, setReactionMessageId] = useState<string | null>(null);
+  const [menuMessageId, setMenuMessageId] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
   useEffect(() => {
     isLoadingRef.current = isLoadingOlder;
   }, [isLoadingOlder]);
@@ -116,17 +126,53 @@ export function MessageFeed({
                         <strong>{message.author.name}</strong>
                         {message.author.id === me.id && <span className="you-badge">você</span>}
                         <time>{message.time}</time>
+                        {message.edited && <span className="message-edited">editada</span>}
                       </div>
                     )}
-                    <p className="message-text">{message.text}</p>
-                    {message.reactions?.length ? (
+                    {editingMessageId === message.id ? (
+                      <div className="message-edit-form">
+                        <textarea
+                          aria-label="Editar mensagem"
+                          value={editText}
+                          onChange={(event) => setEditText(event.target.value)}
+                        />
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void onEditMessage(message.id, editText).then((saved) => {
+                                if (saved) setEditingMessageId(null);
+                              });
+                            }}
+                            disabled={!editText.trim()}
+                          >
+                            Salvar
+                          </button>
+                          <button type="button" onClick={() => setEditingMessageId(null)}>
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className={`message-text ${message.deleted ? 'message-deleted' : ''}`}>
+                        {message.deleted ? 'Esta mensagem foi excluída.' : message.text}
+                      </p>
+                    )}
+                    {!message.deleted && message.reactions?.length ? (
                       <div className="reaction-row" role="group" aria-label="Reações">
                         {message.reactions.map((reaction) => (
                           <button
                             key={reaction.emoji}
                             className={`reaction ${reaction.active ? 'reaction-active' : ''}`}
-                            onClick={() => onToast('Reações em tempo real em breve.')}
+                            onClick={() =>
+                              void onToggleReaction(
+                                message.id,
+                                reaction.emoji,
+                                Boolean(reaction.active),
+                              )
+                            }
                             aria-label={`${reaction.count} reações ${reaction.emoji}`}
+                            title={reaction.users?.join(', ') ?? ''}
                           >
                             <span>{reaction.emoji}</span>
                             <span>{reaction.count}</span>
@@ -135,14 +181,36 @@ export function MessageFeed({
                         <button
                           className="reaction-add"
                           aria-label="Adicionar reação"
-                          onClick={() => onToast('Seletor de reações em breve.')}
+                          aria-expanded={reactionMessageId === message.id}
+                          onClick={() =>
+                            setReactionMessageId((current) =>
+                              current === message.id ? null : message.id,
+                            )
+                          }
                         >
                           <Smile size={15} />
                           <Plus size={10} />
                         </button>
                       </div>
                     ) : null}
-                    {message.replyCount ? (
+                    {!message.deleted && reactionMessageId === message.id && (
+                      <div className="reaction-picker" role="group" aria-label="Adicionar reação">
+                        {['👍', '❤️', '😂', '🎉', '👀'].map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            aria-label={`Reagir com ${emoji}`}
+                            onClick={() => {
+                              void onToggleReaction(message.id, emoji, false);
+                              setReactionMessageId(null);
+                            }}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {!message.deleted && message.replyCount ? (
                       <button
                         className="thread-link"
                         onClick={() =>
@@ -157,26 +225,71 @@ export function MessageFeed({
                       </button>
                     ) : null}
                   </div>
-                  <div className="message-hover-actions">
-                    <button
-                      aria-label="Reagir à mensagem"
-                      onClick={() => onToast('Seletor de reações em breve.')}
-                    >
-                      <Smile size={15} />
-                    </button>
-                    <button
-                      aria-label="Responder no tópico"
-                      onClick={() => onToast('Conversas em tópicos em breve.')}
-                    >
-                      <MessageCircle size={15} />
-                    </button>
-                    <button
-                      aria-label="Mais ações da mensagem"
-                      onClick={() => onToast('Ações da mensagem em breve.')}
-                    >
-                      <MoreHorizontal size={16} />
-                    </button>
-                  </div>
+                  {!message.deleted && (
+                    <div className="message-hover-actions">
+                      <button
+                        aria-label="Reagir à mensagem"
+                        aria-expanded={reactionMessageId === message.id}
+                        onClick={() =>
+                          setReactionMessageId((current) =>
+                            current === message.id ? null : message.id,
+                          )
+                        }
+                      >
+                        <Smile size={15} />
+                      </button>
+                      <button
+                        aria-label="Responder no tópico"
+                        onClick={() => onToast('Conversas em tópicos em breve.')}
+                      >
+                        <MessageCircle size={15} />
+                      </button>
+                      {message.mine && (
+                        <button
+                          aria-label="Mais ações da mensagem"
+                          aria-expanded={menuMessageId === message.id}
+                          onClick={() =>
+                            setMenuMessageId((current) =>
+                              current === message.id ? null : message.id,
+                            )
+                          }
+                        >
+                          <MoreHorizontal size={16} />
+                        </button>
+                      )}
+                      {menuMessageId === message.id && (
+                        <div
+                          className="message-action-menu"
+                          role="group"
+                          aria-label="Ações da mensagem"
+                        >
+                          {message.mine && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditText(message.text);
+                                  setEditingMessageId(message.id);
+                                  setMenuMessageId(null);
+                                }}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void onDeleteMessage(message.id);
+                                  setMenuMessageId(null);
+                                }}
+                              >
+                                Excluir
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </article>
               );
             })}

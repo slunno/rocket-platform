@@ -7,6 +7,8 @@ export type MessageAction =
   | { type: 'older-page-loaded'; conversationId: string; messages: Message[] }
   | { type: 'optimistic-added'; conversationId: string; message: Message }
   | { type: 'message-created'; conversationId: string; message: Message }
+  | { type: 'message-updated'; conversationId: string; message: Message }
+  | { type: 'message-deleted'; conversationId: string; messageId: string }
   | { type: 'send-failed'; conversationId: string; temporaryId: string };
 
 function hasMessage(messages: Message[], candidate: Message) {
@@ -45,6 +47,22 @@ export function messagesReducer(state: MessageState, action: MessageAction): Mes
       if (hasMessage(current, action.message)) return state;
       return { ...state, [action.conversationId]: [...current, action.message] };
     }
+    case 'message-updated': {
+      if (!current.some((message) => message.id === action.message.id)) return state;
+      return {
+        ...state,
+        [action.conversationId]: current.map((message) =>
+          message.id === action.message.id ? action.message : message,
+        ),
+      };
+    }
+    case 'message-deleted':
+      return {
+        ...state,
+        [action.conversationId]: current.map((message) =>
+          message.id === action.messageId ? { ...message, deleted: true } : message,
+        ),
+      };
     case 'send-failed':
       return {
         ...state,

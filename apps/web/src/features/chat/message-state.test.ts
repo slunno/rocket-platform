@@ -63,4 +63,23 @@ describe('reducer de mensagens', () => {
 
     expect(result.conversation.map(({ id }) => id)).toEqual(['server-1', 'server-2']);
   });
+
+  it('substitui uma mensagem editada e mantém a exclusão como estado visível', () => {
+    const original = message('message-1');
+    const edited = message('message-1', { text: 'Atualizada.', edited: true });
+    const initial: MessageState = { conversation: [original] };
+    const afterEdit = messagesReducer(initial, {
+      type: 'message-updated',
+      conversationId: 'conversation',
+      message: edited,
+    });
+    const afterDelete = messagesReducer(afterEdit, {
+      type: 'message-deleted',
+      conversationId: 'conversation',
+      messageId: 'message-1',
+    });
+
+    expect(afterEdit.conversation[0]).toMatchObject({ text: 'Atualizada.', edited: true });
+    expect(afterDelete.conversation[0]).toMatchObject({ text: 'Atualizada.', deleted: true });
+  });
 });

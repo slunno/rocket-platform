@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import type { Server } from 'socket.io';
-import { messageInputSchema, paginationQuerySchema } from '@rocket/shared';
+import {
+  messageInputSchema,
+  messageUpdateInputSchema,
+  paginationQuerySchema,
+  reactionInputSchema,
+} from '@rocket/shared';
 import { prisma } from './lib/prisma.js';
 import { requireAuth } from './auth.js';
 import { attachAuthSocketServer, authRouter } from './auth/routes.js';
@@ -9,13 +14,22 @@ import { createOrganizationRouter, getChannelContext } from './organization/rout
 const getRouteParam = (value: string | string[] | undefined) =>
   Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
 
-function withReactionCounts<T extends { reactions: { emoji: string }[] }>(message: T) {
-  const counts = new Map<string, number>();
-  for (const reaction of message.reactions)
-    counts.set(reaction.emoji, (counts.get(reaction.emoji) ?? 0) + 1);
+function withReactionCounts<
+  T extends { reactions: { emoji: string; user: { id: string; displayName: string } }[] },
+>(message: T) {
+  const usersByEmoji = new Map<string, { id: string; displayName: string }[]>();
+  for (const reaction of message.reactions) {
+    const users = usersByEmoji.get(reaction.emoji) ?? [];
+    users.push(reaction.user);
+    usersByEmoji.set(reaction.emoji, users);
+  }
   return {
     ...message,
-    reactions: [...counts].map(([emoji, count]) => ({ emoji, _count: { userId: count } })),
+    reactions: [...usersByEmoji].map(([emoji, users]) => ({
+      emoji,
+      users,
+      _count: { userId: users.length },
+    })),
   };
 }
 
@@ -23,8 +37,66 @@ const messageInclude = {
   author: {
     select: { id: true, username: true, displayName: true, avatarUrl: true, status: true },
   },
-  reactions: { select: { emoji: true } },
+  reactions: { select: { emoji: true, user: { select: { id: true, displayName: true } } } },
 } as const;
+
+async function findAuthorizedMessage(messageId: string, userId: string) {
+  const message = await prisma.message.findFirst({
+    where: { id: messageId, deletedAt: null },
+    select: { id: true, authorId: true, conversationId: true, channelId: true },
+  });
+  if (!message) {
+    return {
+      allowed: false,
+      status: 404,
+      code: 'MESSAGE_NOT_FOUND',
+      message: 'Mensagem não encontrada.',
+    } as const;
+  }
+
+  if (message.conversationId) {
+    const membership = await prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId: message.conversationId, userId } },
+      select: { userId: true },
+    });
+    if (!membership) {
+      return {
+        allowed: false,
+        status: 404,
+        code: 'MESSAGE_NOT_FOUND',
+        message: 'Mensagem não encontrada.',
+      } as const;
+    }
+    return { allowed: true, message, room: `conversation:${message.conversationId}` } as const;
+  }
+
+  if (!message.channelId) {
+    return {
+      allowed: false,
+      status: 404,
+      code: 'MESSAGE_NOT_FOUND',
+      message: 'Mensagem não encontrada.',
+    } as const;
+  }
+  const context = await getChannelContext(message.channelId, userId);
+  if (!context) {
+    return {
+      allowed: false,
+      status: 404,
+      code: 'MESSAGE_NOT_FOUND',
+      message: 'Mensagem não encontrada.',
+    } as const;
+  }
+  if (!context.isMember) {
+    return {
+      allowed: false,
+      status: 403,
+      code: 'CHANNEL_MEMBERSHIP_REQUIRED',
+      message: 'Entre na equipe para acessar esta mensagem.',
+    } as const;
+  }
+  return { allowed: true, message, room: `channel:${message.channelId}` } as const;
+}
 
 async function listMessages(
   parent: { conversationId: string } | { channelId: string },
@@ -338,6 +410,138 @@ export function createApiRouter(io: Server) {
         channelId,
       });
       return res.status(201).json(normalizedMessage);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.patch('/messages/:messageId', requireAuth, async (req, res, next) => {
+    try {
+      const messageId = getRouteParam(req.params.messageId);
+      const access = await findAuthorizedMessage(messageId, req.userId!);
+      if (!access.allowed)
+        return res.status(access.status).json({
+          error: { code: access.code, message: access.message },
+        });
+      if (access.message.authorId !== req.userId) {
+        return res.status(403).json({
+          error: { code: 'MESSAGE_AUTHOR_REQUIRED', message: 'Somente a autoria pode editar.' },
+        });
+      }
+      const parsedBody = messageUpdateInputSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'A mensagem deve conter de 1 a 10.000 caracteres.',
+          },
+        });
+      }
+      const updatedMessage = await prisma.message.update({
+        where: { id: messageId },
+        data: { text: parsedBody.data.text, editedAt: new Date() },
+        include: messageInclude,
+      });
+      const normalizedMessage = withReactionCounts(updatedMessage);
+      io.to(access.room).emit('message:updated', normalizedMessage);
+      return res.json(normalizedMessage);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.delete('/messages/:messageId', requireAuth, async (req, res, next) => {
+    try {
+      const messageId = getRouteParam(req.params.messageId);
+      const access = await findAuthorizedMessage(messageId, req.userId!);
+      if (!access.allowed)
+        return res.status(access.status).json({
+          error: { code: access.code, message: access.message },
+        });
+      if (access.message.authorId !== req.userId) {
+        return res.status(403).json({
+          error: { code: 'MESSAGE_AUTHOR_REQUIRED', message: 'Somente a autoria pode excluir.' },
+        });
+      }
+      const deletedAt = new Date();
+      await prisma.message.update({ where: { id: messageId }, data: { deletedAt } });
+      io.to(access.room).emit('message:deleted', {
+        id: messageId,
+        conversationId: access.message.conversationId,
+        channelId: access.message.channelId,
+        deletedAt: deletedAt.toISOString(),
+      });
+      return res.status(204).end();
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.put('/messages/:messageId/reactions', requireAuth, async (req, res, next) => {
+    try {
+      const messageId = getRouteParam(req.params.messageId);
+      const access = await findAuthorizedMessage(messageId, req.userId!);
+      if (!access.allowed)
+        return res.status(access.status).json({
+          error: { code: access.code, message: access.message },
+        });
+      const parsedBody = reactionInputSchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        return res.status(400).json({
+          error: { code: 'VALIDATION_ERROR', message: 'Informe uma reação válida.' },
+        });
+      }
+      const key = {
+        messageId_userId_emoji: {
+          messageId,
+          userId: req.userId!,
+          emoji: parsedBody.data.emoji,
+        },
+      };
+      const existingReaction = await prisma.reaction.findUnique({ where: key });
+      if (!existingReaction) {
+        await prisma.reaction.upsert({
+          where: key,
+          create: { messageId, userId: req.userId!, emoji: parsedBody.data.emoji },
+          update: {},
+        });
+      }
+      const updatedMessage = await prisma.message.findUniqueOrThrow({
+        where: { id: messageId },
+        include: messageInclude,
+      });
+      const normalizedMessage = withReactionCounts(updatedMessage);
+      if (!existingReaction) io.to(access.room).emit('reaction:added', normalizedMessage);
+      return res.json(normalizedMessage);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.delete('/messages/:messageId/reactions/:emoji', requireAuth, async (req, res, next) => {
+    try {
+      const messageId = getRouteParam(req.params.messageId);
+      const access = await findAuthorizedMessage(messageId, req.userId!);
+      if (!access.allowed)
+        return res.status(access.status).json({
+          error: { code: access.code, message: access.message },
+        });
+      const parsedBody = reactionInputSchema.safeParse({ emoji: req.params.emoji });
+      if (!parsedBody.success) {
+        return res.status(400).json({
+          error: { code: 'VALIDATION_ERROR', message: 'Informe uma reação válida.' },
+        });
+      }
+      const removed = await prisma.reaction.deleteMany({
+        where: { messageId, userId: req.userId!, emoji: parsedBody.data.emoji },
+      });
+      const updatedMessage = await prisma.message.findUniqueOrThrow({
+        where: { id: messageId },
+        include: messageInclude,
+      });
+      const normalizedMessage = withReactionCounts(updatedMessage);
+      if (removed.count) io.to(access.room).emit('reaction:removed', normalizedMessage);
+      return res.json(normalizedMessage);
     } catch (error) {
       return next(error);
     }

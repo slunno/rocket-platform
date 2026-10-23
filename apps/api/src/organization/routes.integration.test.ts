@@ -340,6 +340,95 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
     ).toBe(200);
     expect(
       (
+        await request('PATCH', `/messages/${firstMessageJson.id}`, member.accessToken, {
+          text: 'Edição de outra pessoa.',
+        })
+      ).status,
+    ).toBe(403);
+    const editedMessageResponse = await request(
+      'PATCH',
+      `/messages/${firstMessageJson.id}`,
+      owner.accessToken,
+      { text: 'Primeira mensagem revisada.' },
+    );
+    const editedMessage = (await editedMessageResponse.json()) as {
+      text: string;
+      editedAt: string | null;
+    };
+    expect(editedMessageResponse.status).toBe(200);
+    expect(editedMessage).toMatchObject({
+      text: 'Primeira mensagem revisada.',
+      editedAt: expect.any(String),
+    });
+
+    const memberReaction = await request(
+      'PUT',
+      `/messages/${firstMessageJson.id}/reactions`,
+      member.accessToken,
+      { emoji: '👍' },
+    );
+    expect(memberReaction.status).toBe(200);
+    const duplicateReaction = await request(
+      'PUT',
+      `/messages/${firstMessageJson.id}/reactions`,
+      member.accessToken,
+      { emoji: '👍' },
+    );
+    const duplicateReactionJson = (await duplicateReaction.json()) as {
+      reactions: { emoji: string; users: { id: string }[] }[];
+    };
+    expect(duplicateReactionJson.reactions.find(({ emoji }) => emoji === '👍')?.users).toHaveLength(
+      1,
+    );
+    const ownerReaction = await request(
+      'PUT',
+      `/messages/${firstMessageJson.id}/reactions`,
+      owner.accessToken,
+      { emoji: '👍' },
+    );
+    const ownerReactionJson = (await ownerReaction.json()) as {
+      reactions: { emoji: string; users: { displayName: string }[] }[];
+    };
+    expect(ownerReactionJson.reactions.find(({ emoji }) => emoji === '👍')?.users).toHaveLength(2);
+    expect(
+      (
+        await request(
+          'DELETE',
+          `/messages/${firstMessageJson.id}/reactions/${encodeURIComponent('👍')}`,
+          owner.accessToken,
+        )
+      ).status,
+    ).toBe(200);
+    const memberOnlyReaction = await request(
+      'GET',
+      `/channels/${publicChannel.id}/messages?limit=10`,
+      owner.accessToken,
+    );
+    const memberOnlyPage = (await memberOnlyReaction.json()) as {
+      items: { id: string; reactions: { emoji: string; users: { displayName: string }[] }[] }[];
+    };
+    expect(
+      memberOnlyPage.items.find(({ id }) => id === firstMessageJson.id)?.reactions[0]?.users,
+    ).toHaveLength(1);
+
+    expect(
+      (await request('DELETE', `/messages/${firstMessageJson.id}`, member.accessToken)).status,
+    ).toBe(403);
+    expect(
+      (await request('DELETE', `/messages/${firstMessageJson.id}`, owner.accessToken)).status,
+    ).toBe(204);
+    const afterSoftDelete = await request(
+      'GET',
+      `/channels/${publicChannel.id}/messages?limit=10`,
+      owner.accessToken,
+    );
+    expect(
+      ((await afterSoftDelete.json()) as { items: { id: string }[] }).items.some(
+        ({ id }) => id === firstMessageJson.id,
+      ),
+    ).toBe(false);
+    expect(
+      (
         await request('PATCH', `/channels/${publicChannel.id}`, owner.accessToken, {
           visibility: 'PRIVATE',
         })

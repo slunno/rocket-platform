@@ -319,6 +319,8 @@ export type RemoteMessage = {
   conversationId?: string;
   channelId?: string;
   clientMessageId?: string | null;
+  editedAt?: string | null;
+  deletedAt?: string | null;
   text: string;
   createdAt: string;
   author: {
@@ -328,7 +330,11 @@ export type RemoteMessage = {
     avatarUrl?: string | null;
     status: AuthUser['status'];
   };
-  reactions: { emoji: string; _count: { userId: number } }[];
+  reactions: {
+    emoji: string;
+    users: { id: string; displayName: string }[];
+    _count: { userId: number };
+  }[];
 };
 
 export type RemoteMessagePage = {
@@ -370,6 +376,25 @@ export const sendChannelMessage = (
     method: 'POST',
     body: JSON.stringify({ text, clientMessageId }),
   });
+
+export const editMessage = (token: string, id: string, text: string) =>
+  request<RemoteMessage>(`/api/messages/${encodeURIComponent(id)}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({ text }),
+  });
+export const deleteMessage = (token: string, id: string) =>
+  request<void>(`/api/messages/${encodeURIComponent(id)}`, token, { method: 'DELETE' });
+export const addMessageReaction = (token: string, id: string, emoji: string) =>
+  request<RemoteMessage>(`/api/messages/${encodeURIComponent(id)}/reactions`, token, {
+    method: 'PUT',
+    body: JSON.stringify({ emoji }),
+  });
+export const removeMessageReaction = (token: string, id: string, emoji: string) =>
+  request<RemoteMessage>(
+    `/api/messages/${encodeURIComponent(id)}/reactions/${encodeURIComponent(emoji)}`,
+    token,
+    { method: 'DELETE' },
+  );
 
 const statusMap: Record<AuthUser['status'], Person['status']> = {
   ONLINE: 'online',
@@ -422,6 +447,7 @@ export function mapRemoteMessage(message: RemoteMessage, myId: string): Message 
     clientMessageId: message.clientMessageId ?? undefined,
     author,
     text: message.text,
+    edited: Boolean(message.editedAt),
     time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(
       new Date(message.createdAt),
     ),
@@ -432,6 +458,8 @@ export function mapRemoteMessage(message: RemoteMessage, myId: string): Message 
     reactions: message.reactions.map((reaction) => ({
       emoji: reaction.emoji,
       count: reaction._count.userId,
+      active: reaction.users.some(({ id }) => id === myId),
+      users: reaction.users.map(({ displayName }) => displayName),
     })),
   };
 }

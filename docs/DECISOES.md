@@ -73,3 +73,9 @@ Registros curtos de contexto, decisão e consequência.
 - **Contexto:** mensagens precisam carregar histórico antigo com custo previsível e suportar retries sem duplicar envios quando a resposta da rede se perde.
 - **Decisão:** paginar por ID de mensagem no banco, ordenar por `createdAt` e `id` em ordem estável, e aceitar um UUID `clientMessageId` único por autor e conversa/canal.
 - **Consequência:** a migração mantém compatibilidade com mensagens antigas via coluna nula; páginas informam `nextCursor` e retries com a mesma chave retornam o mesmo registro. A interface conserva a posição da rolagem ao inserir mensagens antigas e reconcilia otimistas pelo UUID.
+
+## 2026-10-23 — Edição, exclusão e reações de mensagens
+
+- **Contexto:** alterações precisam respeitar autoria e refletir nas outras sessões sem apagar o histórico de forma irreversível.
+- **Decisão:** somente quem criou a mensagem pode editar ou marcar como excluída; reações usam chave única por mensagem, pessoa e emoji; os eventos publicam a mensagem atualizada para os membros da sala autorizada.
+- **Consequência:** o texto excluído permanece no banco sob `deletedAt`, listas normais o ocultam e a interface mostra o estado de exclusão; reações podem ser removidas e incluem participantes para exibição.
