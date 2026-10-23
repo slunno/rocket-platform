@@ -12,11 +12,34 @@ describe('configuração da API', () => {
     expect(result.API_PORT).toBe(4000);
     expect(result.DEMO_AUTH_ENABLED).toBe(false);
     expect(result.NODE_ENV).toBe('development');
+    expect(result.REDIS_URL).toBe('redis://localhost:6379');
     expect(result.MAIL_PROVIDER).toBe('log');
   });
 
   it('rejeita URLs de banco de dados inválidas', () => {
     expect(envSchema.safeParse({ DATABASE_URL: 'http://localhost/db' }).success).toBe(false);
+  });
+
+  it('rejeita Redis local em produção', () => {
+    const result = envSchema.safeParse({
+      ...validEnvironment,
+      NODE_ENV: 'production',
+      JWT_SECRET: 'production-secret-with-at-least-32-characters',
+      DEMO_AUTH_ENABLED: 'false',
+      MAIL_PROVIDER: 'smtp',
+      MAIL_FROM: 'Rocket <noreply@example.com>',
+      SMTP_HOST: 'smtp.example.com',
+      SMTP_USER: 'rocket',
+      SMTP_PASSWORD: 'smtp-secret',
+      REDIS_URL: 'rediss://localhost:6379',
+      STORAGE_ENDPOINT: 'https://s3.example.com',
+      STORAGE_ACCESS_KEY: 'production-access',
+      STORAGE_SECRET_KEY: 'production-storage-secret',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success)
+      expect(result.error.issues.some((issue) => issue.path[0] === 'REDIS_URL')).toBe(true);
   });
 
   it('bloqueia autenticação demo em produção', () => {
@@ -48,6 +71,7 @@ describe('configuração da API', () => {
       JWT_SECRET: 'production-secret-with-at-least-32-characters',
       DEMO_AUTH_ENABLED: 'false',
       MAIL_PROVIDER: 'smtp',
+      REDIS_URL: 'rediss://cache.example.com:6380',
     });
 
     expect(result.success).toBe(false);
@@ -60,6 +84,7 @@ describe('configuração da API', () => {
       JWT_SECRET: 'production-secret-with-at-least-32-characters',
       DEMO_AUTH_ENABLED: 'false',
       MAIL_PROVIDER: 'smtp',
+      REDIS_URL: 'rediss://cache.example.com:6380',
       MAIL_FROM: 'Rocket <noreply@example.com>',
       SMTP_HOST: 'smtp.example.com',
       SMTP_USER: 'rocket',
@@ -92,6 +117,7 @@ describe('configuração da API', () => {
       JWT_SECRET: 'production-secret-with-at-least-32-characters',
       DEMO_AUTH_ENABLED: 'false',
       MAIL_PROVIDER: 'smtp',
+      REDIS_URL: 'rediss://cache.example.com:6380',
       MAIL_FROM: 'Rocket <noreply@example.com>',
       SMTP_HOST: 'smtp.example.com',
       SMTP_PORT: '465',

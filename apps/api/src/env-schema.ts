@@ -10,6 +10,13 @@ export const envSchema = z
       .refine((value) => /^postgres(?:ql)?:/.test(value), {
         message: 'Use uma URL PostgreSQL válida.',
       }),
+    REDIS_URL: z
+      .string()
+      .url()
+      .refine((value) => /^rediss?:/.test(value), {
+        message: 'Use uma URL Redis válida.',
+      })
+      .default('redis://localhost:6379'),
     JWT_SECRET: z.string().min(32).default('local-only-secret-change-before-deployment-000000000'),
     DEMO_AUTH_ENABLED: z
       .enum(['true', 'false'])
@@ -62,6 +69,28 @@ export const envSchema = z
         code: 'custom',
         path: ['DEMO_AUTH_ENABLED'],
         message: 'A autenticação demo deve ficar desativada em produção.',
+      });
+    }
+    let redisHostname = '';
+    try {
+      redisHostname = new URL(env.REDIS_URL).hostname
+        .toLowerCase()
+        .replace(/^\[|\]$/g, '')
+        .replace(/\.$/, '');
+    } catch {
+      // The field-level URL validation already reports malformed Redis URLs.
+    }
+    if (
+      env.NODE_ENV === 'production' &&
+      (redisHostname === 'localhost' ||
+        redisHostname === '::1' ||
+        redisHostname === '0.0.0.0' ||
+        redisHostname.startsWith('127.'))
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['REDIS_URL'],
+        message: 'Configure um serviço Redis remoto e privado em produção.',
       });
     }
     if (env.NODE_ENV === 'production' && env.MAIL_PROVIDER !== 'smtp') {

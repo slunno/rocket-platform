@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { io, type Socket } from 'socket.io-client';
+import { PRESENCE_HEARTBEAT_INTERVAL_MS, socketEvents } from '@rocket/shared';
 import { Check } from 'lucide-react';
 import { me as demoMe } from '../../demoData';
 import {
@@ -65,7 +66,7 @@ import {
   type RemoteWorkspaceMember,
   type WorkspaceRole,
 } from '../../api';
-import type { Conversation, Message } from '../../types';
+import type { Conversation, Message, Person } from '../../types';
 import { mergeMessage, messagesReducer } from './message-state';
 import { useAuth } from '../../auth/AuthContext';
 import { ChatSidebar } from './components/ChatSidebar';
@@ -454,8 +455,16 @@ export function ChatPage() {
       transports: ['websocket', 'polling'],
     });
     socketRef.current = socket;
+    const sendPresenceHeartbeat = () => {
+      if (socket.connected) socket.emit(socketEvents.presenceHeartbeat);
+    };
+    const presenceHeartbeatTimer = window.setInterval(
+      sendPresenceHeartbeat,
+      PRESENCE_HEARTBEAT_INTERVAL_MS,
+    );
     socket.on('connect', () => {
       setOnline(true);
+      sendPresenceHeartbeat();
       void resyncAfterReconnect();
     });
     socket.on('disconnect', () => {
@@ -467,6 +476,29 @@ export function ChatPage() {
       for (const timeout of remoteTypingTimeoutsRef.current.values()) window.clearTimeout(timeout);
       remoteTypingTimeoutsRef.current.clear();
     });
+    const applyPresence = (event: { userId: string; online: boolean }) => {
+      const statusFor = (status: Person['status']): Person['status'] => {
+        if (!event.online) return 'offline';
+        return status === 'busy' || status === 'do-not-disturb' || status === 'away'
+          ? status
+          : 'online';
+      };
+      setDirectConversations((current) =>
+        current.map((conversation) => ({
+          ...conversation,
+          members: conversation.members.map((person) =>
+            person.id === event.userId ? { ...person, status: statusFor(person.status) } : person,
+          ),
+        })),
+      );
+    };
+    socket.on(socketEvents.presenceUpdated, applyPresence);
+    socket.on(
+      socketEvents.presenceSnapshot,
+      (snapshot: { users: { userId: string; online: boolean }[]; updatedAt: string }) => {
+        snapshot.users.forEach(applyPresence);
+      },
+    );
     socket.on('conversation:updated', (event: { conversationId: string }) => {
       const currentToken = latestTokenRef.current;
       if (!currentToken) return;
@@ -676,6 +708,7 @@ export function ChatPage() {
     socket.on('reaction:added', handleReactionChanged);
     socket.on('reaction:removed', handleReactionChanged);
     return () => {
+      window.clearInterval(presenceHeartbeatTimer);
       socket.disconnect();
       socketRef.current = null;
       if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);

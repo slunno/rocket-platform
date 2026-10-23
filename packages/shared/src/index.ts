@@ -197,7 +197,12 @@ export const socketEvents = {
   readUpdated: 'read:updated',
   conversationUpdated: 'conversation:updated',
   attachmentReady: 'attachment:ready',
+  presenceHeartbeat: 'presence:heartbeat',
+  presenceUpdated: 'presence:updated',
+  presenceSnapshot: 'presence:snapshot',
 } as const;
+
+export const PRESENCE_HEARTBEAT_INTERVAL_MS = 20_000;
 
 export const paginationQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
