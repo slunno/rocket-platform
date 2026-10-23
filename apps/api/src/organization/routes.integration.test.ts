@@ -440,11 +440,11 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
     const rootsOnly = (await rootsOnlyResponse.json()) as {
       items: { id: string; replyCount: number }[];
     };
-    expect(rootsOnly.items).toHaveLength(3);
+    expect(rootsOnly.items).toHaveLength(5);
     expect(rootsOnly.items.find(({ id }) => id === firstMessageJson.id)?.replyCount).toBe(1);
     expect(
       await prisma.message.count({ where: { channelId: publicChannel.id, replyToId: null } }),
-    ).toBe(3);
+    ).toBe(5);
     expect(
       (
         await request(
