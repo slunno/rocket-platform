@@ -182,6 +182,33 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
     expect(secondMessage.status).toBe(201);
     expect(thirdMessage.status).toBe(201);
 
+    const recentMessagesResponse = await request(
+      'GET',
+      `/channels/${publicChannel.id}/messages?limit=2`,
+      owner.accessToken,
+    );
+    const recentPage = (await recentMessagesResponse.json()) as {
+      items: { id: string }[];
+      nextCursor: string | null;
+    };
+    expect(recentMessagesResponse.status).toBe(200);
+    expect(recentPage.items).toHaveLength(2);
+    expect(recentPage.nextCursor).toBe(recentPage.items[0]?.id);
+
+    const olderMessagesResponse = await request(
+      'GET',
+      `/channels/${publicChannel.id}/messages?limit=2&cursor=${encodeURIComponent(recentPage.nextCursor!)}`,
+      owner.accessToken,
+    );
+    const olderPage = (await olderMessagesResponse.json()) as {
+      items: { id: string }[];
+      nextCursor: string | null;
+    };
+    expect(olderMessagesResponse.status).toBe(200);
+    expect(olderPage.items).toHaveLength(1);
+    expect(olderPage.nextCursor).toBeNull();
+    expect(new Set([...olderPage.items, ...recentPage.items].map(({ id }) => id)).size).toBe(3);
+
     const pdfBytes = Uint8Array.from(Buffer.from('%PDF-1.7\nRocket test file\n'));
     const attachmentResponse = await request(
       'POST',
@@ -360,32 +387,6 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
     );
     expect(rejectedSpoof.status).toBe(400);
 
-    const recentMessagesResponse = await request(
-      'GET',
-      `/channels/${publicChannel.id}/messages?limit=2`,
-      owner.accessToken,
-    );
-    const recentPage = (await recentMessagesResponse.json()) as {
-      items: { id: string }[];
-      nextCursor: string | null;
-    };
-    expect(recentMessagesResponse.status).toBe(200);
-    expect(recentPage.items).toHaveLength(2);
-    expect(recentPage.nextCursor).toBe(recentPage.items[0]?.id);
-
-    const olderMessagesResponse = await request(
-      'GET',
-      `/channels/${publicChannel.id}/messages?limit=2&cursor=${encodeURIComponent(recentPage.nextCursor!)}`,
-      owner.accessToken,
-    );
-    const olderPage = (await olderMessagesResponse.json()) as {
-      items: { id: string }[];
-      nextCursor: string | null;
-    };
-    expect(olderMessagesResponse.status).toBe(200);
-    expect(olderPage.items).toHaveLength(1);
-    expect(olderPage.nextCursor).toBeNull();
-    expect(new Set([...olderPage.items, ...recentPage.items].map(({ id }) => id)).size).toBe(3);
     const replyClientMessageId = randomUUID();
     const firstReplyResponse = await request(
       'POST',
