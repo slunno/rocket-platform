@@ -205,6 +205,22 @@ async function listThreadReplies(rootMessageId: string, limit: number, cursor?: 
   return { items, nextCursor: hasMore ? (items[0]?.id ?? null) : null };
 }
 
+async function countUnreadMessages(
+  parent: { conversationId: string } | { channelId: string },
+  userId: string,
+  lastReadAt: Date,
+) {
+  return prisma.message.count({
+    where: {
+      ...parent,
+      replyToId: null,
+      deletedAt: null,
+      authorId: { not: userId },
+      createdAt: { gt: lastReadAt },
+    },
+  });
+}
+
 export function createApiRouter(io: Server) {
   const router = Router();
   attachAuthSocketServer(io);
@@ -242,7 +258,7 @@ export function createApiRouter(io: Server) {
                 },
               },
               messages: {
-                where: { deletedAt: null },
+                where: { deletedAt: null, replyToId: null },
                 orderBy: { createdAt: 'desc' },
                 take: 1,
                 select: { text: true, createdAt: true },
@@ -254,21 +270,57 @@ export function createApiRouter(io: Server) {
         orderBy: { conversation: { updatedAt: 'desc' } },
       });
       return res.json(
-        memberships.map(({ conversation }) => ({
-          id: conversation.id,
-          type: conversation.type,
-          name:
-            conversation.type === 'DIRECT'
-              ? (conversation.members.find(({ user }) => user.id !== req.userId)?.user
-                  .displayName ?? conversation.name)
-              : conversation.name,
-          description: conversation.description,
-          memberCount: conversation._count.members,
-          preview: conversation.messages[0]?.text,
-          lastAt: conversation.messages[0]?.createdAt.toISOString(),
-          members: conversation.members.map(({ user }) => user),
-        })),
+        await Promise.all(
+          memberships.map(async ({ conversation, lastReadAt, joinedAt }) => ({
+            id: conversation.id,
+            type: conversation.type,
+            name:
+              conversation.type === 'DIRECT'
+                ? (conversation.members.find(({ user }) => user.id !== req.userId)?.user
+                    .displayName ?? conversation.name)
+                : conversation.name,
+            description: conversation.description,
+            memberCount: conversation._count.members,
+            preview: conversation.messages[0]?.text,
+            lastAt: conversation.messages[0]?.createdAt.toISOString(),
+            unread: await countUnreadMessages(
+              { conversationId: conversation.id },
+              req.userId!,
+              lastReadAt ?? joinedAt,
+            ),
+            members: conversation.members.map(({ user }) => user),
+          })),
+        ),
       );
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/conversations/:conversationId/read', requireAuth, async (req, res, next) => {
+    try {
+      const conversationId = getRouteParam(req.params.conversationId);
+      const membership = await prisma.conversationMember.findUnique({
+        where: { conversationId_userId: { conversationId, userId: req.userId! } },
+        select: { userId: true },
+      });
+      if (!membership) {
+        return res.status(404).json({
+          error: { code: 'CONVERSATION_NOT_FOUND', message: 'Conversa não encontrada.' },
+        });
+      }
+      const { lastReadAt } = await prisma.conversationMember.update({
+        where: { conversationId_userId: { conversationId, userId: req.userId! } },
+        data: { lastReadAt: new Date() },
+        select: { lastReadAt: true },
+      });
+      const serialized = lastReadAt!.toISOString();
+      io.to(`user:${req.userId}`).emit('read:updated', {
+        targetType: 'CONVERSATION',
+        targetId: conversationId,
+        lastReadAt: serialized,
+      });
+      return res.json({ lastReadAt: serialized });
     } catch (error) {
       return next(error);
     }
@@ -307,7 +359,9 @@ export function createApiRouter(io: Server) {
           error: { code: 'INVALID_MESSAGE_CURSOR', message: 'O cursor não pertence à conversa.' },
         });
       }
-      return res.json(page);
+      const lastReadAt = membership.lastReadAt ?? membership.joinedAt;
+      const unreadCount = await countUnreadMessages({ conversationId }, req.userId!, lastReadAt);
+      return res.json({ ...page, lastReadAt: lastReadAt.toISOString(), unreadCount });
     } catch (error) {
       return next(error);
     }
@@ -382,6 +436,42 @@ export function createApiRouter(io: Server) {
     }
   });
 
+  router.post('/channels/:channelId/read', requireAuth, async (req, res, next) => {
+    try {
+      const channelId = getRouteParam(req.params.channelId);
+      const context = await getChannelContext(channelId, req.userId!);
+      if (!context) {
+        return res.status(404).json({
+          error: { code: 'CHANNEL_NOT_FOUND', message: 'Canal não encontrado.' },
+        });
+      }
+      if (!context.isMember) {
+        return res.status(403).json({
+          error: {
+            code: 'CHANNEL_MEMBERSHIP_REQUIRED',
+            message: 'Entre na equipe para acessar este canal.',
+          },
+        });
+      }
+
+      const { lastReadAt } = await prisma.channelReadState.upsert({
+        where: { channelId_userId: { channelId, userId: req.userId! } },
+        create: { channelId, userId: req.userId!, lastReadAt: new Date() },
+        update: { lastReadAt: new Date() },
+        select: { lastReadAt: true },
+      });
+      const serialized = lastReadAt.toISOString();
+      io.to(`user:${req.userId}`).emit('read:updated', {
+        targetType: 'CHANNEL',
+        targetId: channelId,
+        lastReadAt: serialized,
+      });
+      return res.json({ lastReadAt: serialized });
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   router.get('/channels/:channelId/messages', requireAuth, async (req, res, next) => {
     try {
       const channelId = getRouteParam(req.params.channelId);
@@ -421,7 +511,17 @@ export function createApiRouter(io: Server) {
           error: { code: 'INVALID_MESSAGE_CURSOR', message: 'O cursor não pertence ao canal.' },
         });
       }
-      return res.json(page);
+      const readState = await prisma.channelReadState.findUnique({
+        where: { channelId_userId: { channelId, userId: req.userId! } },
+        select: { lastReadAt: true },
+      });
+      const joinedAt =
+        context.channel.visibility === 'PUBLIC'
+          ? context.teamMembership?.joinedAt
+          : context.channel.members[0]?.joinedAt;
+      const lastReadAt = readState?.lastReadAt ?? joinedAt ?? context.channel.createdAt;
+      const unreadCount = await countUnreadMessages({ channelId }, req.userId!, lastReadAt);
+      return res.json({ ...page, lastReadAt: lastReadAt.toISOString(), unreadCount });
     } catch (error) {
       return next(error);
     }

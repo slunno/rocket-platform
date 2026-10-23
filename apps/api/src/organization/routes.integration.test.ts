@@ -392,6 +392,9 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
       (await request('GET', `/channels/${privateChannel.id}/messages`, member.accessToken)).status,
     ).toBe(403);
     expect(
+      (await request('POST', `/channels/${publicChannel.id}/read`, member.accessToken)).status,
+    ).toBe(403);
+    expect(
       (
         await request('POST', `/messages/${firstMessageJson.id}/replies`, member.accessToken, {
           text: 'Sem entrar na equipe.',
@@ -399,9 +402,62 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
       ).status,
     ).toBe(403);
     expect((await request('POST', `/teams/${team.id}/join`, member.accessToken)).status).toBe(204);
+    await prisma.teamMember.update({
+      where: { teamId_userId: { teamId: team.id, userId: memberId } },
+      data: { joinedAt: new Date() },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
     expect(
       (await request('GET', `/channels/${publicChannel.id}/messages`, member.accessToken)).status,
     ).toBe(200);
+    expect(
+      (await request('POST', `/channels/${privateChannel.id}/read`, member.accessToken)).status,
+    ).toBe(403);
+    const unreadRootResponse = await request(
+      'POST',
+      `/channels/${publicChannel.id}/messages`,
+      owner.accessToken,
+      { text: 'Mensagem nova para o membro.' },
+    );
+    expect(unreadRootResponse.status).toBe(201);
+    const unreadPageResponse = await request(
+      'GET',
+      `/channels/${publicChannel.id}/messages`,
+      member.accessToken,
+    );
+    const unreadPage = (await unreadPageResponse.json()) as {
+      unreadCount: number;
+      lastReadAt: string;
+    };
+    expect(unreadPageResponse.status).toBe(200);
+    expect(unreadPage.unreadCount).toBe(1);
+    expect(unreadPage.lastReadAt).toEqual(expect.any(String));
+    const workspaceUnreadResponse = await request(
+      'GET',
+      `/workspaces/${workspace.id}`,
+      member.accessToken,
+    );
+    const workspaceUnread = (await workspaceUnreadResponse.json()) as {
+      teams: { channels: { id: string; unread: number }[] }[];
+    };
+    expect(
+      workspaceUnread.teams
+        .flatMap(({ channels }) => channels)
+        .find(({ id }) => id === publicChannel.id)?.unread,
+    ).toBe(1);
+    const channelReadResponse = await request(
+      'POST',
+      `/channels/${publicChannel.id}/read`,
+      member.accessToken,
+    );
+    expect(channelReadResponse.status).toBe(200);
+    const readPageResponse = await request(
+      'GET',
+      `/channels/${publicChannel.id}/messages`,
+      member.accessToken,
+    );
+    const readPage = (await readPageResponse.json()) as { unreadCount: number };
+    expect(readPage.unreadCount).toBe(0);
     const memberReplyResponse = await request(
       'POST',
       `/messages/${firstMessageJson.id}/replies`,

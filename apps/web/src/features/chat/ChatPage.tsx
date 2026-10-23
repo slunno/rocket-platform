@@ -34,6 +34,8 @@ import {
   getWorkspaceMembers,
   getWorkspaces,
   joinTeam,
+  markChannelRead,
+  markConversationRead,
   mapRemoteMessage,
   mapRemotePerson,
   removeChannelMember,
@@ -93,7 +95,15 @@ export function ChatPage() {
   const [messageMap, dispatchMessage] = useReducer(messagesReducer, {});
   const [loadedConversationIds, setLoadedConversationIds] = useState<Set<string>>(new Set());
   const [messagePages, setMessagePages] = useState<
-    Record<string, { nextCursor: string | null; loadingOlder: boolean }>
+    Record<
+      string,
+      {
+        nextCursor: string | null;
+        loadingOlder: boolean;
+        lastReadAt?: string | null;
+        unreadCount?: number;
+      }
+    >
   >({});
   const [text, setText] = useState('');
   const [query, setQuery] = useState('');
@@ -132,9 +142,16 @@ export function ChatPage() {
   const threadRootIdRef = useRef<string | null>(null);
   const latestTokenRef = useRef(token);
   const myIdRef = useRef(me.id);
+  const activeIdRef = useRef(activeId);
+  const loadedConversationIdsRef = useRef(loadedConversationIds);
+  const conversationsRef = useRef<Conversation[]>([]);
+  const workspaceIdRef = useRef(workspaceId);
   const resizeOrigin = useRef<{ x: number; width: number } | null>(null);
   latestTokenRef.current = token;
   myIdRef.current = me.id;
+  activeIdRef.current = activeId;
+  loadedConversationIdsRef.current = loadedConversationIds;
+  workspaceIdRef.current = workspaceId;
   threadRootIdRef.current = threadRoot?.id ?? null;
 
   const showToast = useCallback((message: string) => {
@@ -228,7 +245,10 @@ export function ChatPage() {
     () => [...channelConversations, ...directConversations],
     [channelConversations, directConversations],
   );
+  conversationsRef.current = conversations;
   const active = conversations.find((conversation) => conversation.id === activeId);
+  const activeConversationId = active?.id;
+  const activeConversationKind = active?.kind;
   const activeMessages = messageMap[activeId] ?? [];
   const isChannel = active?.kind === 'CHANNEL';
   const mentionOptions = useMemo<MessageMentionOption[]>(() => {
@@ -262,6 +282,119 @@ export function ChatPage() {
   const workspaceRole: WorkspaceRole = workspace?.role ?? 'MEMBER';
   const workspaceName =
     workspace?.name ?? workspaces.find((item) => item.id === workspaceId)?.name ?? 'Rocket';
+
+  const updateUnreadCount = useCallback(
+    (conversationId: string, update: number | ((current: number) => number)) => {
+      const nextCount = (current: number) =>
+        Math.max(0, typeof update === 'function' ? update(current) : update);
+      setDirectConversations((current) =>
+        current.map((conversation) =>
+          conversation.id === conversationId
+            ? { ...conversation, unread: nextCount(conversation.unread ?? 0) }
+            : conversation,
+        ),
+      );
+      setWorkspace((current) =>
+        current
+          ? {
+              ...current,
+              teams: current.teams.map((team) => ({
+                ...team,
+                channels: team.channels.map((channel) =>
+                  channel.id === conversationId
+                    ? { ...channel, unread: nextCount(channel.unread ?? 0) }
+                    : channel,
+                ),
+              })),
+            }
+          : current,
+      );
+      setMessagePages((current) => {
+        const page = current[conversationId];
+        return page
+          ? {
+              ...current,
+              [conversationId]: { ...page, unreadCount: nextCount(page.unreadCount ?? 0) },
+            }
+          : current;
+      });
+    },
+    [],
+  );
+
+  const resyncAfterReconnect = useCallback(async () => {
+    const currentToken = latestTokenRef.current;
+    if (!currentToken) return;
+
+    const sidebarRefreshes = [
+      getConversations(currentToken)
+        .then((remote) =>
+          setDirectConversations(
+            remote.map((conversation) => ({
+              id: conversation.id,
+              kind: conversation.type,
+              name:
+                conversation.type === 'DIRECT'
+                  ? (conversation.members.find((member) => member.id !== myIdRef.current)
+                      ?.displayName ?? conversation.name)
+                  : conversation.name,
+              description: conversation.description ?? undefined,
+              members: conversation.members.map(mapRemotePerson),
+              unread: conversation.unread,
+              lastMessage: conversation.preview,
+              lastAt: conversation.lastAt,
+            })),
+          ),
+        )
+        .catch(() => undefined),
+    ];
+    const currentWorkspaceId = workspaceIdRef.current;
+    if (currentWorkspaceId) {
+      sidebarRefreshes.push(
+        getWorkspace(currentToken, currentWorkspaceId)
+          .then((detail) => {
+            if (workspaceIdRef.current === currentWorkspaceId) setWorkspace(detail);
+          })
+          .catch(() => undefined),
+      );
+    }
+
+    const loadedIds = [...loadedConversationIdsRef.current];
+    const messageRefreshes = loadedIds.map(async (conversationId) => {
+      const conversation = conversationsRef.current.find(({ id }) => id === conversationId);
+      if (!conversation) return;
+      try {
+        const load = conversation.kind === 'CHANNEL' ? getChannelMessages : getMessages;
+        const page = await load(currentToken, conversationId);
+        dispatchMessage({
+          type: 'page-loaded',
+          conversationId,
+          messages: page.items.map((message) => mapRemoteMessage(message, myIdRef.current)),
+        });
+        setMessagePages((current) => ({
+          ...current,
+          [conversationId]: {
+            ...current[conversationId],
+            nextCursor: page.nextCursor,
+            loadingOlder: false,
+            lastReadAt: page.lastReadAt ?? current[conversationId]?.lastReadAt ?? null,
+            unreadCount: page.unreadCount ?? current[conversationId]?.unreadCount ?? 0,
+          },
+        }));
+        if (activeIdRef.current === conversationId && document.visibilityState === 'visible') {
+          const markRead = conversation.kind === 'CHANNEL' ? markChannelRead : markConversationRead;
+          await markRead(currentToken, conversationId);
+          updateUnreadCount(conversationId, 0);
+        } else {
+          updateUnreadCount(conversationId, page.unreadCount ?? 0);
+        }
+      } catch {
+        // A conversa continua usando o estado em cache até a próxima sincronização.
+      }
+    });
+
+    await Promise.all([...sidebarRefreshes, ...messageRefreshes]);
+  }, [updateUnreadCount]);
 
   useEffect(() => {
     if (!active || active.kind !== 'CHANNEL' || !token) {
@@ -309,7 +442,10 @@ export function ChatPage() {
       transports: ['websocket', 'polling'],
     });
     socketRef.current = socket;
-    socket.on('connect', () => setOnline(true));
+    socket.on('connect', () => {
+      setOnline(true);
+      void resyncAfterReconnect();
+    });
     socket.on('disconnect', () => {
       setOnline(false);
       setTypingUsers({});
@@ -369,12 +505,37 @@ export function ChatPage() {
       }
       const parentId = message.conversationId ?? message.channelId ?? '';
       if (!parentId) return;
+      if (message.author.id !== myIdRef.current) {
+        const isActiveAndVisible =
+          activeIdRef.current === parentId && document.visibilityState === 'visible';
+        if (isActiveAndVisible) {
+          const conversation = conversationsRef.current.find(({ id }) => id === parentId);
+          if (conversation) {
+            const markRead =
+              conversation.kind === 'CHANNEL' ? markChannelRead : markConversationRead;
+            const currentToken = latestTokenRef.current;
+            if (currentToken) {
+              void markRead(currentToken, parentId)
+                .then(() => updateUnreadCount(parentId, 0))
+                .catch(() => undefined);
+            }
+          }
+        } else {
+          updateUnreadCount(parentId, (current) => current + 1);
+        }
+      }
       dispatchMessage({
         type: 'message-created',
         conversationId: parentId,
         message: normalized,
       });
     });
+    socket.on(
+      'read:updated',
+      (event: { targetType: 'CHANNEL' | 'CONVERSATION'; targetId: string; lastReadAt: string }) => {
+        updateUnreadCount(event.targetId, 0);
+      },
+    );
     socket.on('message:updated', (message: Parameters<typeof mapRemoteMessage>[0]) => {
       const normalized = mapRemoteMessage(message, myIdRef.current);
       if (message.replyToId) {
@@ -450,7 +611,7 @@ export function ChatPage() {
       for (const timeout of remoteTypingTimeoutsRef.current.values()) window.clearTimeout(timeout);
       remoteTypingTimeoutsRef.current.clear();
     };
-  }, [user?.id]);
+  }, [resyncAfterReconnect, updateUnreadCount, user?.id]);
 
   useEffect(() => {
     const socket = socketRef.current;
@@ -464,20 +625,63 @@ export function ChatPage() {
   }, [token]);
 
   useEffect(() => {
-    if (!token || !active || loadedConversationIds.has(active.id)) return;
-    const load = active.kind === 'CHANNEL' ? getChannelMessages : getMessages;
-    void load(token, active.id)
+    if (!token || !activeConversationId || !activeConversationKind) return;
+    if (loadedConversationIds.has(activeConversationId)) return;
+    const conversationId = activeConversationId;
+    const load = activeConversationKind === 'CHANNEL' ? getChannelMessages : getMessages;
+    void load(token, conversationId)
       .then((page) => {
         const messages = page.items.map((message) => mapRemoteMessage(message, me.id));
-        dispatchMessage({ type: 'page-loaded', conversationId: active.id, messages });
+        dispatchMessage({ type: 'page-loaded', conversationId, messages });
         setMessagePages((current) => ({
           ...current,
-          [active.id]: { nextCursor: page.nextCursor, loadingOlder: false },
+          [conversationId]: {
+            ...current[conversationId],
+            nextCursor: page.nextCursor,
+            loadingOlder: false,
+            lastReadAt: page.lastReadAt ?? null,
+            unreadCount: page.unreadCount ?? 0,
+          },
         }));
-        setLoadedConversationIds((current) => new Set(current).add(active.id));
+        updateUnreadCount(conversationId, page.unreadCount ?? 0);
+        setLoadedConversationIds((current) => new Set(current).add(conversationId));
       })
       .catch(() => undefined);
-  }, [active, loadedConversationIds, me.id, token]);
+  }, [
+    activeConversationId,
+    activeConversationKind,
+    loadedConversationIds,
+    me.id,
+    token,
+    updateUnreadCount,
+  ]);
+
+  useEffect(() => {
+    if (
+      !activeConversationId ||
+      !activeConversationKind ||
+      !token ||
+      !loadedConversationIds.has(activeConversationId)
+    )
+      return;
+    const conversationId = activeConversationId;
+    const markRead = activeConversationKind === 'CHANNEL' ? markChannelRead : markConversationRead;
+    const markVisibleConversationRead = () => {
+      if (document.visibilityState !== 'visible') return;
+      void markRead(token, conversationId)
+        .then(() => updateUnreadCount(conversationId, 0))
+        .catch(() => undefined);
+    };
+    markVisibleConversationRead();
+    document.addEventListener('visibilitychange', markVisibleConversationRead);
+    return () => document.removeEventListener('visibilitychange', markVisibleConversationRead);
+  }, [
+    activeConversationId,
+    activeConversationKind,
+    loadedConversationIds,
+    token,
+    updateUnreadCount,
+  ]);
 
   useEffect(() => {
     if (!threadRoot || !token) {
@@ -580,12 +784,16 @@ export function ChatPage() {
       });
       setMessagePages((current) => ({
         ...current,
-        [active.id]: { nextCursor: page.nextCursor, loadingOlder: false },
+        [active.id]: {
+          ...current[active.id],
+          nextCursor: page.nextCursor,
+          loadingOlder: false,
+        },
       }));
     } catch {
       setMessagePages((current) => ({
         ...current,
-        [active.id]: { ...pageState, loadingOlder: false },
+        [active.id]: { ...current[active.id], loadingOlder: false },
       }));
       showToast('Não foi possível carregar as mensagens anteriores.');
     }
@@ -618,6 +826,7 @@ export function ChatPage() {
       clientMessageId,
       author: me,
       text: cleanText,
+      createdAt: new Date().toISOString(),
       time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(
         new Date(),
       ),
@@ -1060,6 +1269,7 @@ export function ChatPage() {
                 dateGroups={dateGroups}
                 messagesEndRef={messagesEndRef}
                 nextCursor={messagePages[activeId]?.nextCursor ?? null}
+                lastReadAt={messagePages[activeId]?.lastReadAt}
                 isLoadingOlder={messagePages[activeId]?.loadingOlder ?? false}
                 onLoadOlder={loadOlderMessages}
                 me={me}
@@ -1276,5 +1486,6 @@ function toChannelConversation(team: RemoteTeam, channel: RemoteChannel): Conver
     isFavorite: channel.isFavorite,
     isHidden: channel.isHidden,
     memberCount: channel.memberCount,
+    unread: channel.unread,
   };
 }

@@ -23,6 +23,7 @@ export type Message = {
   clientMessageId?: string;
   author: Person;
   text: string;
+  createdAt?: string;
   time: string;
   date: string;
   mine?: boolean;

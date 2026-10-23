@@ -13,6 +13,7 @@ export function MessageFeed({
   dateGroups,
   messagesEndRef,
   nextCursor,
+  lastReadAt,
   isLoadingOlder,
   onLoadOlder,
   me,
@@ -29,6 +30,7 @@ export function MessageFeed({
   dateGroups: MessageGroup[];
   messagesEndRef: RefObject<HTMLDivElement | null>;
   nextCursor: string | null;
+  lastReadAt?: string | null;
   isLoadingOlder: boolean;
   onLoadOlder: () => Promise<void>;
   me: Person;
@@ -48,6 +50,7 @@ export function MessageFeed({
   const [menuMessageId, setMenuMessageId] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
+  let unreadDividerShown = false;
   useEffect(() => {
     isLoadingRef.current = isLoadingOlder;
   }, [isLoadingOlder]);
@@ -113,6 +116,14 @@ export function MessageFeed({
               <span>{group.date}</span>
             </div>
             {group.messages.map((message, index) => {
+              const showUnreadDivider =
+                !unreadDividerShown &&
+                !message.mine &&
+                !message.deleted &&
+                Boolean(lastReadAt) &&
+                Boolean(message.createdAt) &&
+                new Date(message.createdAt!).getTime() > new Date(lastReadAt!).getTime();
+              if (showUnreadDivider) unreadDividerShown = true;
               const previous = group.messages[index - 1];
               const compact = previous?.author.id === message.author.id;
               return (
@@ -124,6 +135,11 @@ export function MessageFeed({
                     {!compact && <Avatar person={message.author} />}
                   </div>
                   <div className="message-body">
+                    {showUnreadDivider && (
+                      <div className="unread-divider" role="separator" aria-label="Novas mensagens">
+                        <span>Novas mensagens</span>
+                      </div>
+                    )}
                     {!compact && (
                       <div className="message-meta">
                         <strong>{message.author.name}</strong>

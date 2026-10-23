@@ -54,6 +54,7 @@ model User {
   passwordResetTokens  PasswordResetToken[]
   teamMemberships      TeamMember[]
   channelMemberships   ChannelMember[]
+  channelReadStates    ChannelReadState[]
   channelPreferences   ChannelPreference[]
   invitesSent          WorkspaceInvite[]   @relation("InviteCreator")
   invitesAccepted      WorkspaceInvite[]   @relation("InviteAccepter")
@@ -175,6 +176,7 @@ model Channel {
   members     ChannelMember[]
   preferences ChannelPreference[]
   messages    Message[]
+  readStates  ChannelReadState[]
 
   @@unique([teamId, slug])
   @@index([teamId, visibility, archivedAt])
@@ -189,6 +191,17 @@ model ChannelMember {
 
   @@id([channelId, userId])
   @@index([userId])
+}
+
+model ChannelReadState {
+  channelId  String
+  userId     String
+  lastReadAt DateTime @default(now())
+  channel    Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, userId])
+  @@index([userId, lastReadAt])
 }
 
 model ChannelPreference {

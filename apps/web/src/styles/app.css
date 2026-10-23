@@ -549,6 +549,24 @@ kbd {
   font-weight: 700;
 }
 
+.unread-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 8px;
+  color: var(--brand);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.unread-divider::before,
+.unread-divider::after {
+  height: 1px;
+  flex: 1;
+  background: color-mix(in srgb, var(--brand) 62%, transparent);
+  content: '';
+}
+
 .dm-section {
   min-height: 100px;
   flex: 1;

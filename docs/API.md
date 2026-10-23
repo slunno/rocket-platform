@@ -4,15 +4,15 @@ Todas as rotas abaixo usam o prefixo `/api`. Rotas de organização exigem `Auth
 
 ## Espaços de trabalho e membros
 
-| Método e rota                                     | Ação                                                                             | Acesso                                                 |
-| ------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `GET /workspaces`                                 | Lista os espaços da pessoa autenticada e seus papéis.                            | Membro do espaço                                       |
-| `POST /workspaces`                                | Cria espaço, proprietário, equipe `Geral` e canal `geral`.                       | Qualquer conta autenticada                             |
-| `GET /workspaces/:workspaceId`                    | Retorna equipes e canais visíveis, incluindo associação e preferências pessoais. | Membro; convidado vê somente equipes associadas        |
-| `PATCH /workspaces/:workspaceId`                  | Atualiza os dados do espaço.                                                     | Proprietário ou administrador                          |
-| `GET /workspaces/:workspaceId/members`            | Lista o diretório do espaço.                                                     | Proprietário, administrador ou membro                  |
-| `PATCH /workspaces/:workspaceId/members/:userId`  | Define `ADMIN`, `MEMBER` ou `GUEST`.                                             | Proprietário ou administrador, com restrições de papel |
-| `DELETE /workspaces/:workspaceId/members/:userId` | Remove uma pessoa do espaço. O proprietário não pode ser removido.               | Proprietário ou administrador                          |
+| Método e rota                                     | Ação                                                                              | Acesso                                                 |
+| ------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `GET /workspaces`                                 | Lista os espaços da pessoa autenticada e seus papéis.                             | Membro do espaço                                       |
+| `POST /workspaces`                                | Cria espaço, proprietário, equipe `Geral` e canal `geral`.                        | Qualquer conta autenticada                             |
+| `GET /workspaces/:workspaceId`                    | Retorna equipes e canais visíveis, associação, não lidas e preferências pessoais. | Membro; convidado vê somente equipes associadas        |
+| `PATCH /workspaces/:workspaceId`                  | Atualiza os dados do espaço.                                                      | Proprietário ou administrador                          |
+| `GET /workspaces/:workspaceId/members`            | Lista o diretório do espaço.                                                      | Proprietário, administrador ou membro                  |
+| `PATCH /workspaces/:workspaceId/members/:userId`  | Define `ADMIN`, `MEMBER` ou `GUEST`.                                              | Proprietário ou administrador, com restrições de papel |
+| `DELETE /workspaces/:workspaceId/members/:userId` | Remove uma pessoa do espaço. O proprietário não pode ser removido.                | Proprietário ou administrador                          |
 
 ## Equipes
 
@@ -38,6 +38,7 @@ Todas as rotas abaixo usam o prefixo `/api`. Rotas de organização exigem `Auth
 | `DELETE /channels/:channelId/members/:userId` | Retira participante de canal privado; pessoa pode sair do próprio canal.                   | Proprietário/administrador ou a própria pessoa    |
 | `PATCH /channels/:channelId/preference`       | Atualiza `favorite` e/ou `hidden` da própria pessoa.                                       | Participante do canal                             |
 | `GET /channels/:channelId/messages`           | Lista uma página de mensagens; aceita `limit` e `cursor` para buscar o histórico anterior. | Participante autorizado                           |
+| `POST /channels/:channelId/read`              | Atualiza o marcador pessoal de leitura do canal e emite `read:updated`.                    | Participante autorizado                           |
 | `POST /channels/:channelId/messages`          | Publica mensagem com `clientMessageId` idempotente e emite `message:created` no canal.     | Participante autorizado                           |
 
 ## Convites
@@ -51,9 +52,9 @@ Todas as rotas abaixo usam o prefixo `/api`. Rotas de organização exigem `Auth
 
 ## Chats
 
-`GET /conversations`, `GET /conversations/:conversationId/messages` e `POST /conversations/:conversationId/messages` permanecem reservadas a conversas `DIRECT` e `GROUP`. Canais usam `channelId` e as rotas dedicadas acima.
+`GET /conversations`, `GET /conversations/:conversationId/messages`, `POST /conversations/:conversationId/read` e `POST /conversations/:conversationId/messages` permanecem reservadas a conversas `DIRECT` e `GROUP`. Canais usam `channelId` e as rotas dedicadas acima. A listagem de conversas e espaços inclui `unread`; páginas de mensagens incluem `lastReadAt` e `unreadCount`. A contagem exclui mensagens próprias, respostas de tópicos e mensagens excluídas.
 
-As rotas de mensagens recebem `limit` (1–100, padrão 50) e um `cursor` opcional identificado pela mensagem mais antiga da página atual. A resposta de listagem contém `{ "items": [...], "nextCursor": "..." }`; `nextCursor` é `null` quando não há mensagens anteriores. Envios podem incluir `clientMessageId` UUID, único por pessoa e conversa/canal, para retries retornarem a mesma mensagem em vez de criar uma duplicata.
+As rotas de mensagens recebem `limit` (1–100, padrão 50) e um `cursor` opcional identificado pela mensagem mais antiga da página atual. A resposta de listagem contém `{ "items": [...], "nextCursor": "...", "lastReadAt": "...", "unreadCount": 0 }`; `nextCursor` é `null` quando não há mensagens anteriores. Envios podem incluir `clientMessageId` UUID, único por pessoa e conversa/canal, para retries retornarem a mesma mensagem em vez de criar uma duplicata.
 
 ## Mensagens e reações
 
@@ -71,3 +72,5 @@ Tópicos têm um nível: respostas não podem receber outras respostas. As respo
 ## Socket.IO
 
 O cliente envia `typing` com `{ "targetType": "CHANNEL" | "CONVERSATION", "targetId": "...", "isTyping": true | false }`. A API só encaminha o evento para a sala que o socket já está autorizado a acessar; o servidor obtém o nome da pessoa autenticada e o envia aos outros participantes.
+
+Ao abrir uma conversa ou canal visível, o cliente chama a rota `/read` correspondente. A API grava o marcador por pessoa e envia `read:updated` à sala pessoal do usuário, sincronizando as demais sessões. Ao reconectar, o cliente busca novamente a página recente e os resumos de não lidas.

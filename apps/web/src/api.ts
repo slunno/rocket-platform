@@ -107,6 +107,7 @@ export type RemoteChannel = {
   isFavorite: boolean;
   isHidden: boolean;
   memberCount: number;
+  unread?: number;
 };
 export type RemoteTeam = {
   id: string;
@@ -342,10 +343,20 @@ export type RemoteMessage = {
 export type RemoteMessagePage = {
   items: RemoteMessage[];
   nextCursor: string | null;
+  lastReadAt?: string | null;
+  unreadCount?: number;
 };
 
 export const getConversations = (token: string) =>
   request<RemoteConversation[]>('/api/conversations', token);
+export const markConversationRead = (token: string, id: string) =>
+  request<{ lastReadAt: string }>(`/api/conversations/${encodeURIComponent(id)}/read`, token, {
+    method: 'POST',
+  });
+export const markChannelRead = (token: string, id: string) =>
+  request<{ lastReadAt: string }>(`/api/channels/${encodeURIComponent(id)}/read`, token, {
+    method: 'POST',
+  });
 function messagePagePath(path: string, cursor?: string) {
   const query = new URLSearchParams({ limit: '50' });
   if (cursor) query.set('cursor', cursor);
@@ -464,6 +475,7 @@ export function mapRemoteMessage(message: RemoteMessage, myId: string): Message 
   return {
     id: message.id,
     clientMessageId: message.clientMessageId ?? undefined,
+    createdAt: message.createdAt,
     replyToId: message.replyToId ?? undefined,
     replyCount: message.replyCount ?? 0,
     author,

@@ -245,6 +245,7 @@ export function ChatSidebar({
                               isFavorite: channel.isFavorite,
                               isHidden: channel.isHidden,
                               memberCount: channel.memberCount,
+                              unread: channel.unread,
                             })
                           }
                           aria-current={activeId === channel.id ? 'page' : undefined}
@@ -256,6 +257,14 @@ export function ChatSidebar({
                           )}
                           <span className="conversation-name">{channel.name}</span>
                           {channel.isFavorite && <Star size={12} aria-label="Canal fixado" />}
+                          {channel.unread ? (
+                            <span
+                              className="unread-count"
+                              aria-label={`${channel.unread} mensagens não lidas`}
+                            >
+                              {channel.unread}
+                            </span>
+                          ) : null}
                         </button>
                         <div className="team-channel-actions">
                           <button

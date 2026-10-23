@@ -139,6 +139,7 @@ export const socketEvents = {
   reactionAdded: 'reaction:added',
   reactionRemoved: 'reaction:removed',
   typing: 'typing',
+  readUpdated: 'read:updated',
 } as const;
 
 export const paginationQuerySchema = z.object({

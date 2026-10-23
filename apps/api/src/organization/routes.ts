@@ -80,7 +80,7 @@ async function getChannelContext(channelId: string, userId: string) {
     where: { id: channelId, archivedAt: null, team: { archivedAt: null } },
     include: {
       team: { select: { id: true, workspaceId: true, name: true, slug: true } },
-      members: { where: { userId }, select: { userId: true } },
+      members: { where: { userId }, select: { userId: true, joinedAt: true } },
       preferences: { where: { userId }, select: { favorite: true, hidden: true } },
     },
   });
@@ -89,7 +89,7 @@ async function getChannelContext(channelId: string, userId: string) {
   if (!workspaceMembership) return null;
   const teamMembership = await prisma.teamMember.findUnique({
     where: { teamId_userId: { teamId: channel.teamId, userId } },
-    select: { userId: true },
+    select: { userId: true, joinedAt: true },
   });
   const isMember =
     channel.visibility === 'PUBLIC' ? Boolean(teamMembership) : channel.members.length > 0;
@@ -168,7 +168,7 @@ router.get('/workspaces/:workspaceId', async (req, res, next) => {
           include: {
             members: {
               where: { userId: req.userId },
-              select: { userId: true },
+              select: { userId: true, joinedAt: true },
             },
             _count: { select: { members: true } },
             channels: {
@@ -182,7 +182,14 @@ router.get('/workspaces/:workspaceId', async (req, res, next) => {
               },
               orderBy: { name: 'asc' },
               include: {
-                members: { where: { userId: req.userId }, select: { userId: true } },
+                members: {
+                  where: { userId: req.userId },
+                  select: { userId: true, joinedAt: true },
+                },
+                readStates: {
+                  where: { userId: req.userId },
+                  select: { lastReadAt: true },
+                },
                 preferences: {
                   where: { userId: req.userId },
                   select: { favorite: true, hidden: true },
@@ -195,6 +202,33 @@ router.get('/workspaces/:workspaceId', async (req, res, next) => {
       },
     });
     if (!workspace) return fail(res, 404, 'WORKSPACE_NOT_FOUND', 'Espaço não encontrado.');
+
+    const unreadEntries = await Promise.all(
+      workspace.teams.flatMap((team) =>
+        team.channels.map(async (channel) => {
+          const joined =
+            channel.visibility === 'PUBLIC' ? team.members.length > 0 : channel.members.length > 0;
+          if (!joined) return [channel.id, 0] as const;
+          const lastReadAt =
+            channel.readStates[0]?.lastReadAt ??
+            (channel.visibility === 'PUBLIC'
+              ? team.members[0]?.joinedAt
+              : channel.members[0]?.joinedAt) ??
+            channel.createdAt;
+          const unread = await prisma.message.count({
+            where: {
+              channelId: channel.id,
+              replyToId: null,
+              deletedAt: null,
+              authorId: { not: req.userId },
+              createdAt: { gt: lastReadAt },
+            },
+          });
+          return [channel.id, unread] as const;
+        }),
+      ),
+    );
+    const unreadByChannel = new Map(unreadEntries);
 
     return res.json({
       ...workspace,
@@ -218,6 +252,7 @@ router.get('/workspaces/:workspaceId', async (req, res, next) => {
           isHidden: channel.preferences[0]?.hidden ?? false,
           memberCount:
             channel.visibility === 'PUBLIC' ? team._count.members : channel._count.members,
+          unread: unreadByChannel.get(channel.id) ?? 0,
         })),
       })),
     });
