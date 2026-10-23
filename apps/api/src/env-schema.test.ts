@@ -16,6 +16,23 @@ describe('configuração da API', () => {
     expect(result.MAIL_PROVIDER).toBe('log');
   });
 
+  it('aceita VAPID completo e rejeita a configuração parcial', () => {
+    expect(
+      envSchema.safeParse({
+        ...validEnvironment,
+        VAPID_PUBLIC_KEY: 'public-vapid-key-that-is-long-enough',
+        VAPID_PRIVATE_KEY: 'private-vapid-key-that-is-long-enough',
+        VAPID_SUBJECT: 'mailto:ti@example.com',
+      }).success,
+    ).toBe(true);
+    expect(
+      envSchema.safeParse({
+        ...validEnvironment,
+        VAPID_PUBLIC_KEY: 'public-vapid-key-that-is-long-enough',
+      }).success,
+    ).toBe(false);
+  });
+
   it('rejeita URLs de banco de dados inválidas', () => {
     expect(envSchema.safeParse({ DATABASE_URL: 'http://localhost/db' }).success).toBe(false);
   });

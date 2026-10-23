@@ -49,8 +49,25 @@ export const envSchema = z
       .default(MAX_ATTACHMENT_SIZE_BYTES),
     API_PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
     WEB_ORIGIN: z.string().url().default('http://localhost:5173'),
+    VAPID_PUBLIC_KEY: z.string().trim().min(20).max(200).optional(),
+    VAPID_PRIVATE_KEY: z.string().trim().min(20).max(200).optional(),
+    VAPID_SUBJECT: z
+      .string()
+      .trim()
+      .refine((value) => /^(mailto:|https:\/\/)/i.test(value), {
+        message: 'Use um endereço mailto: ou uma URL HTTPS para VAPID_SUBJECT.',
+      })
+      .optional(),
   })
   .superRefine((env, context) => {
+    const vapidSettings = [env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY, env.VAPID_SUBJECT];
+    if (vapidSettings.some(Boolean) && !vapidSettings.every(Boolean)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['VAPID_PUBLIC_KEY'],
+        message: 'Configure VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY e VAPID_SUBJECT em conjunto.',
+      });
+    }
     if (
       env.NODE_ENV === 'production' &&
       [

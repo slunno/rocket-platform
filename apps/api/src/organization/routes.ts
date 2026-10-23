@@ -19,6 +19,7 @@ import { env } from '../env.js';
 import { mailProvider } from '../mail/provider.js';
 import { requireAuth } from '../auth.js';
 import { prisma } from '../lib/prisma.js';
+import { notifyInviteAccepted } from '../notifications/service.js';
 
 const router = Router();
 let socketServer: Server | undefined;
@@ -81,7 +82,10 @@ async function getChannelContext(channelId: string, userId: string) {
     include: {
       team: { select: { id: true, workspaceId: true, name: true, slug: true } },
       members: { where: { userId }, select: { userId: true, joinedAt: true } },
-      preferences: { where: { userId }, select: { favorite: true, hidden: true } },
+      preferences: {
+        where: { userId },
+        select: { favorite: true, hidden: true, notificationLevel: true },
+      },
     },
   });
   if (!channel) return null;
@@ -192,7 +196,7 @@ router.get('/workspaces/:workspaceId', async (req, res, next) => {
                 },
                 preferences: {
                   where: { userId: req.userId },
-                  select: { favorite: true, hidden: true },
+                  select: { favorite: true, hidden: true, notificationLevel: true },
                 },
                 _count: { select: { members: true } },
               },
@@ -250,6 +254,7 @@ router.get('/workspaces/:workspaceId', async (req, res, next) => {
             channel.visibility === 'PUBLIC' ? team.members.length > 0 : channel.members.length > 0,
           isFavorite: channel.preferences[0]?.favorite ?? false,
           isHidden: channel.preferences[0]?.hidden ?? false,
+          notificationLevel: channel.preferences[0]?.notificationLevel ?? 'ALL',
           memberCount:
             channel.visibility === 'PUBLIC' ? team._count.members : channel._count.members,
           unread: unreadByChannel.get(channel.id) ?? 0,
@@ -893,7 +898,7 @@ router.patch('/channels/:channelId/preference', async (req, res, next) => {
       where: { channelId_userId: { channelId, userId: req.userId! } },
       update: parsed.data,
       create: { channelId, userId: req.userId!, ...parsed.data },
-      select: { favorite: true, hidden: true },
+      select: { favorite: true, hidden: true, notificationLevel: true },
     });
     return res.json(preference);
   } catch (error) {
@@ -1076,7 +1081,13 @@ router.post('/invites/accept', async (req, res, next) => {
         where: { id: invite.id },
         data: { acceptedAt: new Date(), acceptedById: user.id },
       });
-      return { workspace: invite.workspace, role: invite.role, teamId: invite.teamId };
+      return {
+        inviteId: invite.id,
+        inviterId: invite.invitedById,
+        workspace: invite.workspace,
+        role: invite.role,
+        teamId: invite.teamId,
+      };
     });
     if ('error' in accepted) {
       const status = accepted.error === 'ALREADY_MEMBER' ? 409 : 400;
@@ -1097,6 +1108,17 @@ router.post('/invites/accept', async (req, res, next) => {
         void socketServer?.in(`user:${req.userId}`).socketsJoin(`channel:${id}`);
       });
     }
+    await notifyInviteAccepted({
+      inviteId: accepted.inviteId,
+      workspaceId: accepted.workspace.id,
+      actorId: req.userId!,
+      recipientId: accepted.inviterId,
+    }).catch((error: unknown) => {
+      console.error(
+        'Could not record invite activity:',
+        error instanceof Error ? error.message : error,
+      );
+    });
     return res.json({ ...accepted.workspace, role: accepted.role });
   } catch (error) {
     return next(error);

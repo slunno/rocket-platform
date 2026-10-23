@@ -12,12 +12,17 @@ import { createApiRouter } from './routes.js';
 import { getChannelContext } from './organization/routes.js';
 import { typingInputSchema } from '@rocket/shared';
 import { RedisPresenceStore } from './realtime/presence.js';
+import {
+  closeActivityNotificationQueue,
+  startActivityNotificationWorker,
+} from './notifications/queue.js';
 
 const app = express();
 const server = http.createServer(app);
 const redisPublisher = new Redis(env.REDIS_URL);
 const redisSubscriber = redisPublisher.duplicate();
 const presenceStore = new RedisPresenceStore(redisPublisher);
+let activityNotificationWorker: ReturnType<typeof startActivityNotificationWorker> | null = null;
 const io = new Server(server, {
   cors: { origin: env.WEB_ORIGIN, methods: ['GET', 'POST'], credentials: true },
 });
@@ -264,6 +269,7 @@ io.on('connection', async (socket) => {
 
 async function start() {
   await Promise.all([redisPublisher.ping(), redisSubscriber.ping()]);
+  activityNotificationWorker = startActivityNotificationWorker(io);
   server.listen(env.API_PORT, () =>
     console.log(`Rocket API listening on http://localhost:${env.API_PORT}`),
   );
@@ -276,7 +282,13 @@ void start().catch((error: unknown) => {
 
 async function shutdown() {
   await new Promise<void>((resolve) => io.close(() => resolve()));
-  await Promise.allSettled([redisPublisher.quit(), redisSubscriber.quit(), prisma.$disconnect()]);
+  await Promise.allSettled([
+    activityNotificationWorker?.close() ?? Promise.resolve(),
+    closeActivityNotificationQueue(),
+    redisPublisher.quit(),
+    redisSubscriber.quit(),
+    prisma.$disconnect(),
+  ]);
   process.exit(0);
 }
 process.on('SIGINT', () => void shutdown());

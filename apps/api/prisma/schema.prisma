@@ -32,33 +32,49 @@ enum ChannelVisibility {
   PRIVATE
 }
 
+enum NotificationKind {
+  MENTION
+  REPLY
+  REACTION
+  INVITE
+}
+
+enum NotificationLevel {
+  ALL
+  MENTIONS
+  MUTED
+}
+
 model User {
-  id                   String               @id @default(cuid())
-  username             String               @unique
-  displayName          String
-  email                String?              @unique
-  passwordHash         String?
-  avatarUrl            String?
-  jobTitle             String?
-  timeZone             String               @default("America/Sao_Paulo")
-  locale               String               @default("pt-BR")
-  status               UserStatus           @default(OFFLINE)
-  statusMessage        String?
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
-  workspaceMemberships WorkspaceMember[]
-  conversations        ConversationMember[]
-  createdConversations Conversation[]       @relation("ConversationCreator")
-  messages             Message[]
-  reactions            Reaction[]
-  authSessions         AuthSession[]
-  passwordResetTokens  PasswordResetToken[]
-  teamMemberships      TeamMember[]
-  channelMemberships   ChannelMember[]
-  channelReadStates    ChannelReadState[]
-  channelPreferences   ChannelPreference[]
-  invitesSent          WorkspaceInvite[]    @relation("InviteCreator")
-  invitesAccepted      WorkspaceInvite[]    @relation("InviteAccepter")
+  id                    String                 @id @default(cuid())
+  username              String                 @unique
+  displayName           String
+  email                 String?                @unique
+  passwordHash          String?
+  avatarUrl             String?
+  jobTitle              String?
+  timeZone              String                 @default("America/Sao_Paulo")
+  locale                String                 @default("pt-BR")
+  status                UserStatus             @default(OFFLINE)
+  statusMessage         String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  workspaceMemberships  WorkspaceMember[]
+  conversations         ConversationMember[]
+  createdConversations  Conversation[]         @relation("ConversationCreator")
+  messages              Message[]
+  reactions             Reaction[]
+  authSessions          AuthSession[]
+  passwordResetTokens   PasswordResetToken[]
+  teamMemberships       TeamMember[]
+  channelMemberships    ChannelMember[]
+  channelReadStates     ChannelReadState[]
+  channelPreferences    ChannelPreference[]
+  receivedNotifications ActivityNotification[] @relation("NotificationRecipient")
+  sentNotifications     ActivityNotification[] @relation("NotificationActor")
+  pushSubscriptions     PushSubscription[]
+  invitesSent           WorkspaceInvite[]      @relation("InviteCreator")
+  invitesAccepted       WorkspaceInvite[]      @relation("InviteAccepter")
 }
 
 model AuthSession {
@@ -99,15 +115,16 @@ model AuthThrottle {
 }
 
 model Workspace {
-  id            String            @id @default(cuid())
+  id            String                 @id @default(cuid())
   name          String
-  slug          String            @unique
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  slug          String                 @unique
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
   members       WorkspaceMember[]
   teams         Team[]
   invites       WorkspaceInvite[]
   conversations Conversation[]
+  notifications ActivityNotification[]
 }
 
 model WorkspaceMember {
@@ -123,20 +140,21 @@ model WorkspaceMember {
 }
 
 model Conversation {
-  id          String               @id @default(cuid())
-  type        ConversationType
-  name        String
-  description String?
-  avatarUrl   String?
-  workspaceId String?
-  directKey   String?              @unique
-  createdById String?
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
-  workspace   Workspace?           @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
-  createdBy   User?                @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  members     ConversationMember[]
-  messages    Message[]
+  id            String                 @id @default(cuid())
+  type          ConversationType
+  name          String
+  description   String?
+  avatarUrl     String?
+  workspaceId   String?
+  directKey     String?                @unique
+  createdById   String?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  workspace     Workspace?             @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  createdBy     User?                  @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  members       ConversationMember[]
+  messages      Message[]
+  notifications ActivityNotification[]
 
   @@index([workspaceId, type, updatedAt])
   @@index([updatedAt])
@@ -172,20 +190,21 @@ model TeamMember {
 }
 
 model Channel {
-  id          String              @id @default(cuid())
-  teamId      String
-  name        String
-  slug        String
-  description String?
-  visibility  ChannelVisibility   @default(PUBLIC)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  archivedAt  DateTime?
-  team        Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  members     ChannelMember[]
-  preferences ChannelPreference[]
-  messages    Message[]
-  readStates  ChannelReadState[]
+  id            String                 @id @default(cuid())
+  teamId        String
+  name          String
+  slug          String
+  description   String?
+  visibility    ChannelVisibility      @default(PUBLIC)
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  archivedAt    DateTime?
+  team          Team                   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  members       ChannelMember[]
+  preferences   ChannelPreference[]
+  messages      Message[]
+  readStates    ChannelReadState[]
+  notifications ActivityNotification[]
 
   @@unique([teamId, slug])
   @@index([teamId, visibility, archivedAt])
@@ -214,16 +233,54 @@ model ChannelReadState {
 }
 
 model ChannelPreference {
-  channelId String
-  userId    String
-  favorite  Boolean  @default(false)
-  hidden    Boolean  @default(false)
-  updatedAt DateTime @updatedAt
-  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channelId         String
+  userId            String
+  favorite          Boolean           @default(false)
+  hidden            Boolean           @default(false)
+  notificationLevel NotificationLevel @default(ALL)
+  updatedAt         DateTime          @updatedAt
+  channel           Channel           @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([channelId, userId])
   @@index([userId, favorite, hidden])
+}
+
+model ActivityNotification {
+  id             String           @id @default(cuid())
+  recipientId    String
+  actorId        String?
+  kind           NotificationKind
+  sourceKey      String
+  workspaceId    String?
+  conversationId String?
+  channelId      String?
+  messageId      String?
+  createdAt      DateTime         @default(now())
+  readAt         DateTime?
+  recipient      User             @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor          User?            @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  workspace      Workspace?       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversation   Conversation?    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  channel        Channel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  message        Message?         @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([recipientId, sourceKey])
+  @@index([recipientId, createdAt])
+  @@index([recipientId, readAt, createdAt])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique @db.Text
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model WorkspaceInvite {
@@ -249,37 +306,39 @@ model WorkspaceInvite {
 }
 
 model ConversationMember {
-  conversationId String
-  userId         String
-  joinedAt       DateTime     @default(now())
-  lastReadAt     DateTime?
-  muted          Boolean      @default(false)
-  pinned         Boolean      @default(false)
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId    String
+  userId            String
+  joinedAt          DateTime          @default(now())
+  lastReadAt        DateTime?
+  muted             Boolean           @default(false)
+  pinned            Boolean           @default(false)
+  notificationLevel NotificationLevel @default(ALL)
+  conversation      Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([conversationId, userId])
   @@index([userId, joinedAt])
 }
 
 model Message {
-  id              String        @id @default(cuid())
-  conversationId  String?
-  channelId       String?
-  authorId        String
-  text            String        @db.Text
-  clientMessageId String?       @db.Uuid
-  replyToId       String?
-  createdAt       DateTime      @default(now())
-  editedAt        DateTime?
-  deletedAt       DateTime?
-  conversation    Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  channel         Channel?      @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  author          User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
-  replyTo         Message?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies         Message[]     @relation("MessageReplies")
-  attachments     Attachment[]
-  reactions       Reaction[]
+  id                    String                 @id @default(cuid())
+  conversationId        String?
+  channelId             String?
+  authorId              String
+  text                  String                 @db.Text
+  clientMessageId       String?                @db.Uuid
+  replyToId             String?
+  createdAt             DateTime               @default(now())
+  editedAt              DateTime?
+  deletedAt             DateTime?
+  conversation          Conversation?          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  channel               Channel?               @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  author                User                   @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  replyTo               Message?               @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies               Message[]              @relation("MessageReplies")
+  attachments           Attachment[]
+  reactions             Reaction[]
+  activityNotifications ActivityNotification[]
 
   @@unique([conversationId, authorId, clientMessageId])
   @@unique([channelId, authorId, clientMessageId])
@@ -290,15 +349,15 @@ model Message {
 }
 
 model Attachment {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   messageId  String
   fileName   String
   mimeType   String
   sizeBytes  BigInt
   storageKey String
   uploadedAt DateTime?
-  createdAt  DateTime @default(now())
-  message    Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  message    Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([messageId])
 }

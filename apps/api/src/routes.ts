@@ -22,6 +22,8 @@ import { attachAuthSocketServer, authRouter } from './auth/routes.js';
 import { createOrganizationRouter, getChannelContext } from './organization/routes.js';
 import { isAllowedAttachment, sanitizeAttachmentFileName } from './storage/files.js';
 import { storageProvider } from './storage/provider.js';
+import { createActivityRouter } from './notifications/routes.js';
+import { notifyMessageCreated, notifyReactionAdded } from './notifications/service.js';
 
 const getRouteParam = (value: string | string[] | undefined) =>
   Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
@@ -372,6 +374,7 @@ function conversationDto(
       userId: string;
       muted: boolean;
       pinned: boolean;
+      notificationLevel: 'ALL' | 'MENTIONS' | 'MUTED';
       user: {
         id: string;
         username: string;
@@ -398,8 +401,9 @@ function conversationDto(
     workspaceId: conversation.workspaceId,
     createdById: conversation.createdById,
     memberCount: conversation._count.members,
-    muted: currentMember?.muted ?? false,
+    muted: Boolean(currentMember?.muted || currentMember?.notificationLevel === 'MUTED'),
     pinned: currentMember?.pinned ?? false,
+    notificationLevel: currentMember?.notificationLevel ?? 'ALL',
     members: conversation.members.map(({ user }) => user),
   };
 }
@@ -418,6 +422,7 @@ export function createApiRouter(io: Server) {
   });
 
   router.use('/auth', authRouter);
+  router.use('/activity', createActivityRouter());
   router.use('/', createOrganizationRouter(io));
 
   router.get('/conversations', requireAuth, async (req, res, next) => {
@@ -658,8 +663,19 @@ export function createApiRouter(io: Server) {
       return res.json(
         await prisma.conversationMember.update({
           where: { conversationId_userId: { conversationId, userId: req.userId! } },
-          data: input.data,
-          select: { muted: true, pinned: true },
+          data: {
+            ...input.data,
+            ...(input.data.muted !== undefined
+              ? { notificationLevel: input.data.muted ? 'MUTED' : 'ALL' }
+              : {}),
+            ...(input.data.notificationLevel
+              ? {
+                  muted: input.data.notificationLevel === 'MUTED',
+                  notificationLevel: input.data.notificationLevel,
+                }
+              : {}),
+          },
+          select: { muted: true, pinned: true, notificationLevel: true },
         }),
       );
     } catch (error) {
@@ -977,6 +993,17 @@ export function createApiRouter(io: Server) {
         ...normalizedMessage,
         conversationId,
       });
+      await notifyMessageCreated({
+        messageId: message.id,
+        authorId: req.userId!,
+        text: message.text,
+        conversationId,
+      }).catch((error: unknown) => {
+        console.error(
+          'Could not record message activity:',
+          error instanceof Error ? error.message : error,
+        );
+      });
       return res.status(201).json(await withUploadForms(message));
     } catch (error) {
       return next(error);
@@ -1174,6 +1201,17 @@ export function createApiRouter(io: Server) {
         ...normalizedMessage,
         channelId,
       });
+      await notifyMessageCreated({
+        messageId: message.id,
+        authorId: req.userId!,
+        text: message.text,
+        channelId,
+      }).catch((error: unknown) => {
+        console.error(
+          'Could not record message activity:',
+          error instanceof Error ? error.message : error,
+        );
+      });
       return res.status(201).json(await withUploadForms(message));
     } catch (error) {
       return next(error);
@@ -1358,6 +1396,20 @@ export function createApiRouter(io: Server) {
         channelId: access.message.channelId ?? undefined,
       };
       io.to(access.room).emit('message:created', normalizedReply);
+      await notifyMessageCreated({
+        messageId: reply.id,
+        authorId: req.userId!,
+        text: reply.text,
+        replyToId: reply.replyToId,
+        ...(access.message.conversationId
+          ? { conversationId: access.message.conversationId }
+          : { channelId: access.message.channelId! }),
+      }).catch((error: unknown) => {
+        console.error(
+          'Could not record reply activity:',
+          error instanceof Error ? error.message : error,
+        );
+      });
 
       const updatedRoot = await prisma.message.findUniqueOrThrow({
         where: { id: messageId },
@@ -1460,27 +1512,38 @@ export function createApiRouter(io: Server) {
           error: { code: 'VALIDATION_ERROR', message: 'Informe uma reação válida.' },
         });
       }
-      const key = {
-        messageId_userId_emoji: {
+      const reactionCreatedAt = new Date();
+      const createdReaction = await prisma.reaction.createMany({
+        data: {
           messageId,
           userId: req.userId!,
           emoji: parsedBody.data.emoji,
+          createdAt: reactionCreatedAt,
         },
-      };
-      const existingReaction = await prisma.reaction.findUnique({ where: key });
-      if (!existingReaction) {
-        await prisma.reaction.upsert({
-          where: key,
-          create: { messageId, userId: req.userId!, emoji: parsedBody.data.emoji },
-          update: {},
-        });
-      }
+        skipDuplicates: true,
+      });
       const updatedMessage = await prisma.message.findUniqueOrThrow({
         where: { id: messageId },
         include: messageInclude,
       });
       const normalizedMessage = withReactionCounts(updatedMessage);
-      if (!existingReaction) io.to(access.room).emit('reaction:added', normalizedMessage);
+      if (createdReaction.count) {
+        io.to(access.room).emit('reaction:added', normalizedMessage);
+        await notifyReactionAdded({
+          messageId,
+          actorId: req.userId!,
+          emoji: parsedBody.data.emoji,
+          reactionCreatedAt,
+          recipientId: access.message.authorId,
+          conversationId: access.message.conversationId,
+          channelId: access.message.channelId,
+        }).catch((error: unknown) => {
+          console.error(
+            'Could not record reaction activity:',
+            error instanceof Error ? error.message : error,
+          );
+        });
+      }
       return res.json(normalizedMessage);
     } catch (error) {
       return next(error);

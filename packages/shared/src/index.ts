@@ -181,11 +181,38 @@ export const groupConversationUpdateInputSchema = z
   })
   .refine((value) => Object.keys(value).length > 0);
 export const conversationPreferenceInputSchema = z
-  .object({ muted: z.boolean().optional(), pinned: z.boolean().optional() })
+  .object({
+    muted: z.boolean().optional(),
+    pinned: z.boolean().optional(),
+    notificationLevel: z.enum(['ALL', 'MENTIONS', 'MUTED']).optional(),
+  })
   .refine((value) => Object.keys(value).length > 0);
 export const channelPreferenceInputSchema = z
-  .object({ favorite: z.boolean().optional(), hidden: z.boolean().optional() })
+  .object({
+    favorite: z.boolean().optional(),
+    hidden: z.boolean().optional(),
+    notificationLevel: z.enum(['ALL', 'MENTIONS', 'MUTED']).optional(),
+  })
   .refine((value) => Object.keys(value).length > 0);
+
+export const activityQuerySchema = z.object({
+  filter: z.enum(['all', 'unread', 'mentions']).default('all'),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  cursor: z.string().trim().min(1).max(128).optional(),
+});
+
+export const pushSubscriptionInputSchema = z.object({
+  endpoint: z
+    .string()
+    .trim()
+    .url()
+    .max(2048)
+    .refine((value) => /^https:\/\//i.test(value)),
+  keys: z.object({
+    p256dh: z.string().trim().min(32).max(256),
+    auth: z.string().trim().min(16).max(256),
+  }),
+});
 
 export const socketEvents = {
   messageCreated: 'message:created',
@@ -200,6 +227,7 @@ export const socketEvents = {
   presenceHeartbeat: 'presence:heartbeat',
   presenceUpdated: 'presence:updated',
   presenceSnapshot: 'presence:snapshot',
+  notificationCreated: 'notification:created',
 } as const;
 
 export const PRESENCE_HEARTBEAT_INTERVAL_MS = 20_000;
@@ -244,4 +272,6 @@ export type WorkspaceInviteAcceptInput = z.infer<typeof workspaceInviteAcceptInp
 export type DirectConversationCreateInput = z.infer<typeof directConversationCreateInputSchema>;
 export type GroupConversationCreateInput = z.infer<typeof groupConversationCreateInputSchema>;
 export type GroupConversationUpdateInput = z.infer<typeof groupConversationUpdateInputSchema>;
+export type ActivityQuery = z.infer<typeof activityQuerySchema>;
+export type PushSubscriptionInput = z.infer<typeof pushSubscriptionInputSchema>;
 export type SocketEvent = (typeof socketEvents)[keyof typeof socketEvents];
