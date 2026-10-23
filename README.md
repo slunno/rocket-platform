@@ -4,7 +4,7 @@ Plataforma de comunicação corporativa da AKR Brands, em português do Brasil. 
 
 ## Estado do projeto
 
-Os **Blocos 0 — Fundação e higiene**, **1 — Design system e shell da aplicação**, **2 — Autenticação e perfil reais** e **3 — Organização, equipes e canais** estão concluídos. O **Bloco 4 — Mensageria completa** está em andamento, com cursor, envio idempotente, edição, exclusão, reações, digitação, tópicos, menções validadas, Markdown sanitizado, leitura no servidor, contadores de não lidas e ressincronização de mensagens após reconexão. O CI já validou a migração e os contadores com PostgreSQL; falta conferir a interface com duas sessões. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para o plano completo, critérios de aceite, status e pendências.
+Os **Blocos 0 — Fundação e higiene**, **1 — Design system e shell da aplicação**, **2 — Autenticação e perfil reais** e **3 — Organização, equipes e canais** estão concluídos. O **Bloco 4 — Mensageria completa** segue em andamento porque falta conferir a interface entre duas sessões. A implementação do **Bloco 5 — Chats 1:1 e em grupo** está pronta e os CIs #25 e #26 passaram com PostgreSQL, testes, build, seed e smoke test; falta conferir os fluxos entre duas contas pelo navegador integrado. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para os critérios de aceite, status e pendências.
 
 ## Status dos blocos
 
@@ -15,7 +15,7 @@ Os **Blocos 0 — Fundação e higiene**, **1 — Design system e shell da aplic
 | 2 — Autenticação e perfil reais              | ✅ Concluído    |
 | 3 — Organização, equipes e canais            | ✅ Concluído    |
 | 4 — Mensageria completa                      | 🚧 Em andamento |
-| 5 — Chats 1:1 e em grupo                     | ⏳ Pendente     |
+| 5 — Chats 1:1 e em grupo                     | 🚧 Em andamento |
 | 6 — Arquivos e anexos                        | ⏳ Pendente     |
 | 7 — Presença, atividade e notificações       | ⏳ Pendente     |
 | 8 — Busca                                    | ⏳ Pendente     |
@@ -29,7 +29,7 @@ Os **Blocos 0 — Fundação e higiene**, **1 — Design system e shell da aplic
 - Interface React com shell responsivo, rotas, temas claro/escuro/alto contraste, tokens monocromáticos, busca rápida (`Ctrl/Cmd + K`), conversas, painel de detalhes, reações de demonstração e modo local com dados fictícios.
 - Componentes separados por layout, conversa e elementos básicos de interface; tema e largura da barra lateral persistidos no navegador.
 - Rotas com conteúdo de demonstração para Atividade, Calendário, Arquivos e Chamadas; os respectivos fluxos completos permanecem nos blocos futuros do roadmap.
-- API Express com cadastro e login por e-mail, senhas Argon2id, sessões persistentes com refresh rotativo, logout local/global, recuperação de senha, perfil e status manual; demonstração restrita à configuração de desenvolvimento. Também oferece espaços, equipes, canais públicos/privados, papéis, membros, convites por e-mail e mensagens autorizadas com cursor, envio idempotente, edição, exclusão, reações, tópicos, menções restritas aos participantes, indicador de digitação e marcadores de leitura sincronizados por Socket.IO.
+- API Express com cadastro e login por e-mail, senhas Argon2id, sessões persistentes com refresh rotativo, logout local/global, recuperação de senha, perfil e status manual; demonstração restrita à configuração de desenvolvimento. Também oferece espaços, equipes, canais públicos/privados, papéis, membros e convites por e-mail. Mensagens têm cursor, envio idempotente, edição, exclusão, reações, tópicos, menções restritas aos participantes, indicador de digitação e marcadores de leitura sincronizados por Socket.IO. O Bloco 5 oferece DMs sem duplicação, grupos com foto HTTPS, gestão de participantes e preferências de silenciar/fixar; os fluxos com duas contas aguardam conferência visual.
 - Modelo Prisma para usuários, espaços, equipes, canais, conversas diretas/em grupo, mensagens, anexos, reações, membros e convites; migrações versionadas preservam as mensagens dos canais existentes.
 - Dados de demonstração fictícios em contexto de moda e indústria: Comercial, Produto e Estilo, Produção, Marketing, Logística e TI.
 - Pacote `@rocket/shared` com schemas Zod, tipos inferidos e nomes de eventos Socket.IO.
@@ -122,4 +122,4 @@ A interface usa uma paleta monocromática concentrada em `apps/web/src/styles/to
 
 ## Próximas etapas
 
-Conferência entre dois usuários da mensageria, anexos, presença, atividade, notificações, busca, calendário, reuniões, produtividade e recursos de administração seguem planejados em [`docs/ROADMAP.md`](docs/ROADMAP.md) e ainda não devem ser considerados disponíveis. Os papéis e as regras de acesso atuais estão em [`docs/PERMISSOES.md`](docs/PERMISSOES.md); os endpoints estão em [`docs/API.md`](docs/API.md).
+Conferência entre duas contas na mensageria e no novo chat, anexos, presença, atividade, notificações, busca, calendário, reuniões, produtividade e recursos de administração seguem pendentes em [`docs/ROADMAP.md`](docs/ROADMAP.md). Os CIs #25 e #26 já validaram os chats com PostgreSQL. Os papéis e as regras de acesso atuais estão em [`docs/PERMISSOES.md`](docs/PERMISSOES.md); os endpoints estão em [`docs/API.md`](docs/API.md).

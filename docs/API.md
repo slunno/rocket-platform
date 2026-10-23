@@ -52,7 +52,20 @@ Todas as rotas abaixo usam o prefixo `/api`. Rotas de organização exigem `Auth
 
 ## Chats
 
-`GET /conversations`, `GET /conversations/:conversationId/messages`, `POST /conversations/:conversationId/read` e `POST /conversations/:conversationId/messages` permanecem reservadas a conversas `DIRECT` e `GROUP`. Canais usam `channelId` e as rotas dedicadas acima. A listagem de conversas e espaços inclui `unread`; páginas de mensagens incluem `lastReadAt` e `unreadCount`. A contagem exclui mensagens próprias, respostas de tópicos e mensagens excluídas.
+| Método e rota                                           | Ação                                                                                       | Acesso                                          |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| `GET /conversations`                                    | Lista chats recentes com prévia, não lidas e preferências pessoais.                        | Pessoa participante                             |
+| `POST /workspaces/:workspaceId/conversations/direct`    | Abre uma DM idempotente por par de pessoas; exige que ambas pertençam ao espaço.           | Membro não convidado do espaço                  |
+| `POST /workspaces/:workspaceId/conversations`           | Cria grupo com nome, foto HTTPS opcional e até 50 participantes, incluindo a criadora.     | Membro não convidado e demais pessoas do espaço |
+| `PATCH /conversations/:conversationId`                  | Atualiza nome, descrição e foto HTTPS do grupo.                                            | Criador do grupo                                |
+| `PATCH /conversations/:conversationId/preference`       | Atualiza `muted` e/ou `pinned` da própria pessoa.                                          | Participante do chat                            |
+| `POST /conversations/:conversationId/members`           | Adiciona pessoa do mesmo espaço ao grupo; repetição é idempotente.                         | Criador do grupo                                |
+| `DELETE /conversations/:conversationId/members/:userId` | Remove participante ou permite que a própria pessoa saia; transfere autoria se necessário. | Criador do grupo ou a própria pessoa            |
+| `GET /conversations/:conversationId/messages`           | Lista uma página de mensagens com cursor.                                                  | Participante do chat                            |
+| `POST /conversations/:conversationId/read`              | Atualiza o marcador pessoal de leitura e emite `read:updated`.                             | Participante do chat                            |
+| `POST /conversations/:conversationId/messages`          | Publica mensagem com `clientMessageId` idempotente.                                        | Participante do chat                            |
+
+As DMs usam uma chave única derivada do par de IDs, então pedidos concorrentes reutilizam a mesma conversa. As alterações de grupo emitem `conversation:updated` para atualizar as listas das pessoas conectadas. Canais usam `channelId` e as rotas dedicadas acima. A listagem de conversas e espaços inclui `unread`; páginas de mensagens incluem `lastReadAt` e `unreadCount`. A contagem exclui mensagens próprias, respostas de tópicos e mensagens excluídas.
 
 As rotas de mensagens recebem `limit` (1–100, padrão 50) e um `cursor` opcional identificado pela mensagem mais antiga da página atual. A resposta de listagem contém `{ "items": [...], "nextCursor": "...", "lastReadAt": "...", "unreadCount": 0 }`; `nextCursor` é `null` quando não há mensagens anteriores. Envios podem incluir `clientMessageId` UUID, único por pessoa e conversa/canal, para retries retornarem a mesma mensagem em vez de criar uma duplicata.
 

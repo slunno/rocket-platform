@@ -91,3 +91,9 @@ Registros curtos de contexto, decisão e consequência.
 - **Contexto:** canais e chats precisam permitir conversas laterais sem misturar respostas à linha do tempo principal.
 - **Decisão:** usar `Message.replyToId` existente, autorizar cada operação pelo acesso à mensagem inicial e limitar os tópicos a um nível; contar apenas respostas não excluídas.
 - **Consequência:** respostas têm paginação por cursor, chave idempotente, eventos em tempo real e edição/exclusão pelos mesmos critérios de autoria das mensagens principais.
+
+## 2026-10-23 — Identidade e unicidade dos chats
+
+- **Contexto:** duas pessoas não podem criar DMs paralelas; grupos precisam manter seus participantes, foto e preferências sem confundir chats entre usuários.
+- **Decisão:** usar uma chave única de IDs ordenados para DMs, consolidar DMs legadas duplicadas na migração e armazenar silenciar/fixar na associação individual. Grupos permitem até 50 pessoas, foto opcional por URL HTTPS e gerenciamento pelo criador; ao sair, o criador passa para a pessoa restante mais antiga.
+- **Consequência:** mensagens legadas são preservadas durante a consolidação; para as mensagens que vierem de uma DM duplicada, a chave antiga `clientMessageId` é removida para evitar conflito ao mesclar, mas seu conteúdo e IDs permanecem. Alterações de grupo emitem `conversation:updated` para os clientes participantes.

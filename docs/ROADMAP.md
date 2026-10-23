@@ -11,7 +11,7 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 | 2 — Autenticação e perfil reais              | ✅ Concluído    | Cadastro, login, renovação rotativa, logout, recuperação e perfil testados com Argon2id, cookies seguros e rate limit.                                                 |
 | 3 — Organização, equipes e canais            | ✅ Concluído    | Workspace → equipes → canais, convites, papéis e permissões de servidor validados com migração, testes integrados e smoke test no CI.                                  |
 | 4 — Mensageria completa                      | 🚧 Em andamento | Cursor, idempotência, edição, exclusão, threads, reações, menções, marcadores de leitura, contadores de não lidas e ressincronização; validação multiusuário pendente. |
-| 5 — Chats 1:1 e em grupo                     | ⏳ Pendente     | Busca de pessoas, DMs idempotentes, grupos, participantes, silenciar e fixar; sem duplicação de conversas.                                                             |
+| 5 — Chats 1:1 e em grupo                     | 🚧 Em andamento | Busca de pessoas, DMs idempotentes, grupos com foto HTTPS, participantes, silenciar e fixar; sem duplicação de conversas.                                              |
 | 6 — Arquivos e anexos                        | ⏳ Pendente     | MinIO e StorageProvider com upload, preview e download autorizados, respeitando limites e tipos permitidos.                                                            |
 | 7 — Presença, Atividade e Notificações       | ⏳ Pendente     | Presença via Redis, feed, notificações e preferências consistentes entre instâncias.                                                                                   |
 | 8 — Busca                                    | ⏳ Pendente     | Busca PostgreSQL por mensagens, pessoas, canais e arquivos; resultados obedecem permissões.                                                                            |
@@ -135,7 +135,19 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 - **CI #20:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39953080484), incluindo teste integrado de idempotência de tópico, migração, build, seed e smoke test.
 - **CI #21:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39955302804), incluindo autorização de menções, Markdown/preview, build, seed e smoke test.
 - **CI #22:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39957321889), incluindo migração de marcadores, autorização, contagem e limpeza de não lidas, build, seed e smoke test.
-- **Próxima etapa:** conferir o fluxo visual entre duas sessões quando houver ambiente integrado; continuar pelo Bloco 5 — busca de pessoas e criação idempotente de DMs.
+- **Pendência:** conferir o fluxo visual entre duas sessões quando houver ambiente integrado. O trabalho do Bloco 5 prossegue como desvio registrado na seção seguinte.
+
+### 2026-10-23 — Bloco 5 em andamento
+
+- **Status:** 🚧 implementação de DMs e grupos no cliente/API concluída; os CIs #25 e #26 passaram com PostgreSQL, build, seed e smoke test. O Bloco 4 e este bloco ainda aguardam conferência visual de duas contas pelo navegador integrado.
+- **Entregue no checkout:** chave única por par de usuários para DMs idempotentes, migração que consolida DMs antigas repetidas sem apagar mensagens, criação de grupos com até 50 pessoas e foto HTTPS, edição de nome/descrição/foto, gerenciamento de participantes, saída com transferência do criador, preferências de silenciar/fixar, lista ordenada por fixação/atividade e prévia da última mensagem. A interface busca pessoas do espaço atual, cria DMs e grupos, mostra avatares e sincroniza alterações de membros por Socket.IO.
+- **Validação local:** lint, format check, typecheck, build e `npm audit --audit-level=moderate` passaram; 38 testes passaram e 3 testes PostgreSQL foram ignorados localmente porque o host não tem banco. Os testes de interface cobrem a busca, início de DM e criação de grupo.
+- **CI #24:** [falhou](https://github.com/slunno/rocket-platform/actions/runs/39961257283) por uma referência à variável `directPath` antes da declaração no teste de integração. A ordem foi corrigida no commit `98c853e`.
+- **CI #25:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39961517108), incluindo migração PostgreSQL, testes integrados de DMs e grupos, build, seed e smoke test.
+- **CI #26:** [passou](https://github.com/slunno/rocket-platform/actions/runs/39962083825), incluindo lint, format check, typecheck, migração, testes, build, seed e smoke test com o cliente conectado.
+- **Validação pendente:** exercitar a interface completa com duas contas pelo navegador integrado quando houver ambiente web/API conectado. O workspace não possui PostgreSQL local nem projeto Vercel conectado; nenhuma automação de computador foi usada.
+- **Desvio de ordem:** o Bloco 5 começou antes da conferência visual final do Bloco 4. A API do Bloco 4 já passou pelo CI #22; a falta de ambiente para duas sessões mantém sua verificação visual pendente enquanto o trabalho da lista de chats prossegue.
+- **Próxima etapa:** conferir criação de DM, criação de grupo, preferências e saída com duas contas pelo navegador integrado; depois fechar o Bloco 5 e retornar à conferência multiusuário do Bloco 4.
 
 ### 2026-10-22 — Bloco 0 concluído
 
