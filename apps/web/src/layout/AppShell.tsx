@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AppRail } from './AppRail';
 import { TopBar } from './TopBar';
+import { NotificationBridge } from '../features/activity/NotificationBridge';
 
 export function AppShell() {
   const navigate = useNavigate();
@@ -28,6 +29,7 @@ export function AppShell() {
       <AppRail />
       <div className="app-content">
         <TopBar />
+        <NotificationBridge />
         <main id="main-content" className="app-view" tabIndex={-1}>
           <Outlet />
         </main>

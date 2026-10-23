@@ -65,6 +65,7 @@ export type Conversation = {
   createdById?: string | null;
   muted?: boolean;
   pinned?: boolean;
+  notificationLevel?: 'ALL' | 'MENTIONS' | 'MUTED';
 };
 
 export function conversationAvatarPerson(

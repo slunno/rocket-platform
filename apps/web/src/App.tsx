@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'rea
 import { ThemeProvider } from './hooks/useTheme';
 import { AppShell } from './layout/AppShell';
 import { ChatPage } from './features/chat/ChatPage';
+import { ActivityPage } from './features/activity/ActivityPage';
 import { EmptyRoutePage } from './features/activity/EmptyRoutePage';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { AuthPage } from './auth/AuthPage';
@@ -59,15 +60,7 @@ export function AppRoutes() {
           <Route index element={<Navigate to="/chat/produto" replace />} />
           <Route path="chat/:id" element={<ChatPage />} />
           <Route path="equipes/:teamId/:channelId" element={<ChatPage />} />
-          <Route
-            path="atividade"
-            element={
-              <EmptyRoutePage
-                title="Atividade"
-                description="Menções, respostas e atualizações importantes da sua equipe aparecerão aqui."
-              />
-            }
-          />
+          <Route path="atividade" element={<ActivityPage />} />
           <Route
             path="calendario"
             element={

@@ -252,6 +252,7 @@ export function ChatSidebar({
                               joined: true,
                               isFavorite: channel.isFavorite,
                               isHidden: channel.isHidden,
+                              notificationLevel: channel.notificationLevel,
                               memberCount: channel.memberCount,
                               unread: channel.unread,
                             })

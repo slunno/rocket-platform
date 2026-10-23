@@ -1,7 +1,8 @@
 import { Activity, CalendarDays, FolderOpen, MessageCircle, Phone, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Avatar } from '../components/ui/Avatar';
-import { authUserToPerson } from '../api';
+import { authUserToPerson, getActivity } from '../api';
 import { useAuth } from '../auth/AuthContext';
 
 const navigation = [
@@ -15,8 +16,29 @@ const navigation = [
 
 export function AppRail() {
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, accessToken } = useAuth();
+  const [activityUnread, setActivityUnread] = useState(0);
   const person = user ? authUserToPerson(user) : null;
+
+  useEffect(() => {
+    if (!accessToken) {
+      setActivityUnread(0);
+      return;
+    }
+    let active = true;
+    const loadCount = () =>
+      void getActivity(accessToken, 'unread')
+        .then(({ unreadCount }) => {
+          if (active) setActivityUnread(unreadCount);
+        })
+        .catch(() => undefined);
+    loadCount();
+    window.addEventListener('rocket:activity-updated', loadCount);
+    return () => {
+      active = false;
+      window.removeEventListener('rocket:activity-updated', loadCount);
+    };
+  }, [accessToken]);
   return (
     <aside className="app-rail" aria-label="Aplicativos">
       <NavLink className="brand-mark" to="/chat/produto" aria-label="Rocket, página inicial">
@@ -40,6 +62,14 @@ export function AppRail() {
               title={label}
             >
               <Icon size={20} aria-hidden="true" />
+              {label === 'Atividade' && activityUnread > 0 && (
+                <span
+                  className="rail-unread-badge"
+                  aria-label={`${activityUnread} atividades não lidas`}
+                >
+                  {activityUnread > 99 ? '99+' : activityUnread}
+                </span>
+              )}
               <span className="sr-only">{label}</span>
             </NavLink>
           );

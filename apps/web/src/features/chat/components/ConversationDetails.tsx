@@ -15,6 +15,7 @@ export function ConversationDetails({
   meId,
   availableMembers,
   onTogglePreference,
+  onSetNotificationLevel,
   onUpdateGroup,
   onAddMember,
   onRemoveMember,
@@ -26,6 +27,7 @@ export function ConversationDetails({
   meId: string;
   availableMembers: RemoteWorkspaceMember[];
   onTogglePreference: (preference: 'muted' | 'pinned') => Promise<void>;
+  onSetNotificationLevel: (level: 'ALL' | 'MENTIONS' | 'MUTED') => Promise<void>;
   onUpdateGroup: (
     conversationId: string,
     name: string,
@@ -112,18 +114,33 @@ export function ConversationDetails({
           {active.description ??
             (isGroup ? 'Conversa em grupo.' : `Conversa direta com ${active.name}.`)}
         </p>
-        {!isChannel && (
-          <div className="conversation-preference-actions">
-            <button type="button" onClick={() => void onTogglePreference('muted')}>
-              <BellOff size={15} aria-hidden="true" />
-              {active.muted ? 'Ativar notificações' : 'Silenciar conversa'}
-            </button>
-            <button type="button" onClick={() => void onTogglePreference('pinned')}>
-              <Pin size={15} aria-hidden="true" />
-              {active.pinned ? 'Desafixar conversa' : 'Fixar conversa'}
-            </button>
-          </div>
-        )}
+        <div className="conversation-preference-actions">
+          <label className="notification-level-control">
+            Notificações
+            <select
+              value={active.notificationLevel ?? (active.muted ? 'MUTED' : 'ALL')}
+              onChange={(event) =>
+                void onSetNotificationLevel(event.target.value as 'ALL' | 'MENTIONS' | 'MUTED')
+              }
+            >
+              <option value="ALL">Todas as mensagens</option>
+              <option value="MENTIONS">Somente menções</option>
+              <option value="MUTED">Silenciadas</option>
+            </select>
+          </label>
+          {!isChannel && (
+            <>
+              <button type="button" onClick={() => void onTogglePreference('muted')}>
+                <BellOff size={15} aria-hidden="true" />
+                {active.muted ? 'Ativar notificações' : 'Silenciar conversa'}
+              </button>
+              <button type="button" onClick={() => void onTogglePreference('pinned')}>
+                <Pin size={15} aria-hidden="true" />
+                {active.pinned ? 'Desafixar conversa' : 'Fixar conversa'}
+              </button>
+            </>
+          )}
+        </div>
         {isGroup && canManage && (
           <>
             <button

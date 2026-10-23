@@ -923,6 +923,37 @@ export function ChatPage() {
     }
   };
 
+  const setNotificationLevel = async (
+    conversation: Conversation,
+    level: 'ALL' | 'MENTIONS' | 'MUTED',
+  ) => {
+    if (!token) return;
+    try {
+      if (conversation.kind === 'CHANNEL') {
+        await updateChannelPreference(token, conversation.id, { notificationLevel: level });
+        await refreshOrganization();
+      } else {
+        const updated = await updateConversationPreference(token, conversation.id, {
+          notificationLevel: level,
+        });
+        setDirectConversations((current) =>
+          sortConversationList(
+            current.map((item) => (item.id === conversation.id ? { ...item, ...updated } : item)),
+          ),
+        );
+      }
+      showToast(
+        level === 'ALL'
+          ? 'Você receberá todas as notificações deste espaço.'
+          : level === 'MENTIONS'
+            ? 'Você receberá apenas menções deste espaço.'
+            : 'As notificações deste espaço foram silenciadas.',
+      );
+    } catch {
+      showToast('Não foi possível atualizar as notificações deste espaço.');
+    }
+  };
+
   const updateGroupDetails = async (
     conversationId: string,
     name: string,
@@ -1654,6 +1685,7 @@ export function ChatPage() {
                 onTogglePreference={(preference) =>
                   toggleConversationPreference(active, preference)
                 }
+                onSetNotificationLevel={(level) => setNotificationLevel(active, level)}
                 onUpdateGroup={updateGroupDetails}
                 onAddMember={addGroupMember}
                 onRemoveMember={removeGroupMember}
@@ -1826,6 +1858,7 @@ function toChannelConversation(team: RemoteTeam, channel: RemoteChannel): Conver
     joined: channel.joined,
     isFavorite: channel.isFavorite,
     isHidden: channel.isHidden,
+    notificationLevel: channel.notificationLevel,
     memberCount: channel.memberCount,
     unread: channel.unread,
   };

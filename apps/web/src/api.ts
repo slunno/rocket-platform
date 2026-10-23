@@ -106,6 +106,7 @@ export type RemoteChannel = {
   joined: boolean;
   isFavorite: boolean;
   isHidden: boolean;
+  notificationLevel: 'ALL' | 'MENTIONS' | 'MUTED';
   memberCount: number;
   unread?: number;
 };
@@ -254,13 +255,16 @@ export const getChannelMembers = (token: string, channelId: string) =>
 export const updateChannelPreference = (
   token: string,
   channelId: string,
-  input: { favorite?: boolean; hidden?: boolean },
+  input: { favorite?: boolean; hidden?: boolean; notificationLevel?: 'ALL' | 'MENTIONS' | 'MUTED' },
 ) =>
-  request<{ favorite: boolean; hidden: boolean }>(
-    `/api/channels/${encodeURIComponent(channelId)}/preference`,
-    token,
-    { method: 'PATCH', body: JSON.stringify(input) },
-  );
+  request<{
+    favorite: boolean;
+    hidden: boolean;
+    notificationLevel: 'ALL' | 'MENTIONS' | 'MUTED';
+  }>(`/api/channels/${encodeURIComponent(channelId)}/preference`, token, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
 export const createWorkspaceInvite = (
   token: string,
   workspaceId: string,
@@ -308,6 +312,7 @@ export type RemoteConversation = {
   memberCount: number;
   muted: boolean;
   pinned: boolean;
+  notificationLevel: 'ALL' | 'MENTIONS' | 'MUTED';
   preview?: string;
   lastAt?: string;
   unread?: number;
@@ -423,13 +428,74 @@ export const updateConversation = (
 export const updateConversationPreference = (
   token: string,
   conversationId: string,
-  input: { muted?: boolean; pinned?: boolean },
+  input: {
+    muted?: boolean;
+    pinned?: boolean;
+    notificationLevel?: 'ALL' | 'MENTIONS' | 'MUTED';
+  },
 ) =>
-  request<{ muted: boolean; pinned: boolean }>(
+  request<{ muted: boolean; pinned: boolean; notificationLevel: 'ALL' | 'MENTIONS' | 'MUTED' }>(
     `/api/conversations/${encodeURIComponent(conversationId)}/preference`,
     token,
     { method: 'PATCH', body: JSON.stringify(input) },
   );
+
+export type RemoteActivityItem = {
+  id: string;
+  kind: 'MENTION' | 'REPLY' | 'REACTION' | 'INVITE';
+  actorName: string;
+  workspaceName: string | null;
+  createdAt: string;
+  readAt: string | null;
+  target:
+    | { type: 'conversation'; id: string }
+    | { type: 'channel'; id: string; teamId: string }
+    | { type: 'workspace'; id: string }
+    | null;
+  conversationName: string | null;
+  channelName: string | null;
+};
+
+export const getActivity = (
+  token: string,
+  filter: 'all' | 'unread' | 'mentions' = 'all',
+  cursor?: string,
+) => {
+  const query = new URLSearchParams({ filter, limit: '50' });
+  if (cursor) query.set('cursor', cursor);
+  return request<{
+    items: RemoteActivityItem[];
+    nextCursor: string | null;
+    unreadCount: number;
+  }>(`/api/activity?${query.toString()}`, token);
+};
+
+export const markActivityRead = (token: string, activityId: string) =>
+  request<void>(`/api/activity/${encodeURIComponent(activityId)}/read`, token, { method: 'POST' });
+
+export const markAllActivityRead = (token: string) =>
+  request<{ updated: number }>('/api/activity/read-all', token, { method: 'POST' });
+
+export const savePushSubscription = (
+  token: string,
+  subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
+) =>
+  request<void>('/api/activity/push-subscriptions', token, {
+    method: 'POST',
+    body: JSON.stringify(subscription),
+  });
+
+export const getPushConfiguration = (token: string) =>
+  request<{ enabled: boolean; publicKey: string | null }>('/api/activity/push-config', token);
+
+export const deletePushSubscription = (
+  token: string,
+  subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
+) =>
+  request<void>('/api/activity/push-subscriptions', token, {
+    method: 'DELETE',
+    body: JSON.stringify(subscription),
+  });
 export const addConversationMember = (token: string, conversationId: string, userId: string) =>
   request<void>(`/api/conversations/${encodeURIComponent(conversationId)}/members`, token, {
     method: 'POST',
@@ -665,6 +731,7 @@ export function mapRemoteConversation(
     createdById: conversation.createdById,
     muted: conversation.muted,
     pinned: conversation.pinned,
+    notificationLevel: conversation.notificationLevel,
     memberCount: conversation.memberCount,
   };
 }
