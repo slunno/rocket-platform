@@ -349,6 +349,158 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
     const memberId = (
       await prisma.user.findUniqueOrThrow({ where: { email: memberEmail }, select: { id: true } })
     ).id;
+    const ownerId = (
+      await prisma.user.findUniqueOrThrow({ where: { email: ownerEmail }, select: { id: true } })
+    ).id;
+    expect(
+      (await request('POST', directPath, owner.accessToken, { targetUserId: ownerId })).status,
+    ).toBe(400);
+    const directPath = `/workspaces/${workspace.id}/conversations/direct`;
+    const directResults = await Promise.all([
+      request('POST', directPath, owner.accessToken, { targetUserId: memberId }),
+      request('POST', directPath, member.accessToken, { targetUserId: ownerId }),
+    ]);
+    const directConversations = await Promise.all(
+      directResults.map(
+        async (response) => (await response.json()) as { id: string; members: { id: string }[] },
+      ),
+    );
+    expect(directResults.map(({ status }) => status)).toEqual([200, 200]);
+    expect(directConversations[0]?.id).toBe(directConversations[1]?.id);
+    const directConversationId = directConversations[0]!.id;
+    const pairKey = directConversations[0]!.members
+      .map(({ id }) => id)
+      .sort()
+      .join(':');
+    expect(await prisma.conversation.count({ where: { directKey: pairKey } })).toBe(1);
+    const directPreference = await request(
+      'PATCH',
+      `/conversations/${directConversationId}/preference`,
+      owner.accessToken,
+      { muted: true, pinned: true },
+    );
+    expect(directPreference.status).toBe(200);
+    expect(await directPreference.json()).toEqual({ muted: true, pinned: true });
+    const directList = (await (
+      await request('GET', '/conversations', owner.accessToken)
+    ).json()) as { id: string; muted: boolean; pinned: boolean }[];
+    expect(directList.find(({ id }) => id === directConversationId)).toMatchObject({
+      muted: true,
+      pinned: true,
+    });
+    expect(
+      (
+        await request('POST', `/workspaces/${workspace.id}/conversations`, owner.accessToken, {
+          name: 'Imagem insegura',
+          userIds: [memberId],
+          avatarUrl: 'http://example.test/grupo.png',
+        })
+      ).status,
+    ).toBe(400);
+
+    const groupResponse = await request(
+      'POST',
+      `/workspaces/${workspace.id}/conversations`,
+      owner.accessToken,
+      {
+        name: 'Alinhamento de coleção',
+        userIds: [memberId],
+        avatarUrl: 'https://example.test/colecao.png',
+      },
+    );
+    expect(groupResponse.status).toBe(201);
+    const group = (await groupResponse.json()) as {
+      id: string;
+      createdById: string;
+      memberCount: number;
+      avatarUrl: string | null;
+      members: { id: string }[];
+    };
+    expect(group).toMatchObject({ createdById: ownerId, memberCount: 2 });
+    expect(group.avatarUrl).toBe('https://example.test/colecao.png');
+    expect(
+      (
+        await request('PATCH', `/conversations/${group.id}`, member.accessToken, {
+          name: 'Sem permissão',
+        })
+      ).status,
+    ).toBe(403);
+    const renamedGroup = await request('PATCH', `/conversations/${group.id}`, owner.accessToken, {
+      name: 'Coleção primavera',
+      description: 'Planejamento do próximo lançamento.',
+      avatarUrl: 'https://example.test/colecao-primavera.png',
+    });
+    expect(renamedGroup.status).toBe(200);
+    expect(await renamedGroup.json()).toMatchObject({
+      name: 'Coleção primavera',
+      description: 'Planejamento do próximo lançamento.',
+      avatarUrl: 'https://example.test/colecao-primavera.png',
+    });
+    expect(
+      (
+        await request('POST', `/conversations/${group.id}/members`, owner.accessToken, {
+          userId: memberId,
+        })
+      ).status,
+    ).toBe(204);
+    expect(await prisma.conversationMember.count({ where: { conversationId: group.id } })).toBe(2);
+    const groupPreference = await request(
+      'PATCH',
+      `/conversations/${group.id}/preference`,
+      member.accessToken,
+      { muted: true },
+    );
+    expect(groupPreference.status).toBe(200);
+    expect(await groupPreference.json()).toMatchObject({ muted: true });
+    expect(
+      (await request('DELETE', `/conversations/${group.id}/members/${memberId}`, owner.accessToken))
+        .status,
+    ).toBe(204);
+    expect(await prisma.conversationMember.count({ where: { conversationId: group.id } })).toBe(1);
+    expect(
+      (
+        await request('POST', `/conversations/${group.id}/members`, owner.accessToken, {
+          userId: memberId,
+        })
+      ).status,
+    ).toBe(204);
+    expect(
+      (
+        await request(
+          'DELETE',
+          `/conversations/${group.id}/members/${memberId}`,
+          member.accessToken,
+        )
+      ).status,
+    ).toBe(204);
+    expect(await prisma.conversationMember.count({ where: { conversationId: group.id } })).toBe(1);
+    expect(
+      (
+        await request('POST', `/conversations/${group.id}/members`, owner.accessToken, {
+          userId: memberId,
+        })
+      ).status,
+    ).toBe(204);
+    expect(
+      (await request('DELETE', `/conversations/${group.id}/members/${ownerId}`, member.accessToken))
+        .status,
+    ).toBe(403);
+    expect(
+      (await request('DELETE', `/conversations/${group.id}/members/${ownerId}`, owner.accessToken))
+        .status,
+    ).toBe(204);
+    const transferredGroup = await prisma.conversation.findUniqueOrThrow({
+      where: { id: group.id },
+      select: { createdById: true },
+    });
+    expect(transferredGroup.createdById).toBe(memberId);
+    expect(
+      (
+        await request('PATCH', `/conversations/${group.id}`, member.accessToken, {
+          name: 'Lançamento aprovado',
+        })
+      ).status,
+    ).toBe(200);
     expect(
       (
         await request(
@@ -639,6 +791,17 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
     const guestId = (
       await prisma.user.findUniqueOrThrow({ where: { email: guestEmail }, select: { id: true } })
     ).id;
+    expect(
+      (await request('POST', directPath, owner.accessToken, { targetUserId: guestId })).status,
+    ).toBe(403);
+    expect(
+      (
+        await request('POST', `/workspaces/${workspace.id}/conversations`, owner.accessToken, {
+          name: 'Grupo com convidada',
+          userIds: [guestId],
+        })
+      ).status,
+    ).toBe(403);
     expect(
       (
         await request(

@@ -48,6 +48,7 @@ model User {
   updatedAt            DateTime             @updatedAt
   workspaceMemberships WorkspaceMember[]
   conversations        ConversationMember[]
+  createdConversations Conversation[]       @relation("ConversationCreator")
   messages             Message[]
   reactions            Reaction[]
   authSessions         AuthSession[]
@@ -56,8 +57,8 @@ model User {
   channelMemberships   ChannelMember[]
   channelReadStates    ChannelReadState[]
   channelPreferences   ChannelPreference[]
-  invitesSent          WorkspaceInvite[]   @relation("InviteCreator")
-  invitesAccepted      WorkspaceInvite[]   @relation("InviteAccepter")
+  invitesSent          WorkspaceInvite[]    @relation("InviteCreator")
+  invitesAccepted      WorkspaceInvite[]    @relation("InviteAccepter")
 }
 
 model AuthSession {
@@ -98,14 +99,15 @@ model AuthThrottle {
 }
 
 model Workspace {
-  id        String            @id @default(cuid())
-  name      String
-  slug      String            @unique
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  members   WorkspaceMember[]
-  teams     Team[]
-  invites   WorkspaceInvite[]
+  id            String            @id @default(cuid())
+  name          String
+  slug          String            @unique
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  members       WorkspaceMember[]
+  teams         Team[]
+  invites       WorkspaceInvite[]
+  conversations Conversation[]
 }
 
 model WorkspaceMember {
@@ -125,24 +127,31 @@ model Conversation {
   type        ConversationType
   name        String
   description String?
+  avatarUrl   String?
+  workspaceId String?
+  directKey   String?              @unique
+  createdById String?
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
+  workspace   Workspace?           @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  createdBy   User?                @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
   members     ConversationMember[]
   messages    Message[]
 
+  @@index([workspaceId, type, updatedAt])
   @@index([updatedAt])
 }
 
 model Team {
-  id          String       @id @default(cuid())
+  id          String            @id @default(cuid())
   workspaceId String
   name        String
   slug        String
   description String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
   archivedAt  DateTime?
-  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members     TeamMember[]
   channels    Channel[]
   invites     WorkspaceInvite[]
@@ -163,16 +172,16 @@ model TeamMember {
 }
 
 model Channel {
-  id          String            @id @default(cuid())
+  id          String              @id @default(cuid())
   teamId      String
   name        String
   slug        String
   description String?
-  visibility  ChannelVisibility @default(PUBLIC)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  visibility  ChannelVisibility   @default(PUBLIC)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
   archivedAt  DateTime?
-  team        Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team        Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
   members     ChannelMember[]
   preferences ChannelPreference[]
   messages    Message[]
@@ -218,22 +227,22 @@ model ChannelPreference {
 }
 
 model WorkspaceInvite {
-  id          String        @id @default(cuid())
-  workspaceId String
-  teamId      String?
-  email       String
-  role        WorkspaceRole
-  tokenHash   String        @unique
-  expiresAt   DateTime
-  acceptedAt  DateTime?
-  canceledAt  DateTime?
-  invitedById String
+  id           String        @id @default(cuid())
+  workspaceId  String
+  teamId       String?
+  email        String
+  role         WorkspaceRole
+  tokenHash    String        @unique
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  canceledAt   DateTime?
+  invitedById  String
   acceptedById String?
-  createdAt   DateTime      @default(now())
-  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  team        Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  invitedBy   User         @relation("InviteCreator", fields: [invitedById], references: [id], onDelete: Cascade)
-  acceptedBy  User?        @relation("InviteAccepter", fields: [acceptedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime      @default(now())
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  team         Team?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  invitedBy    User          @relation("InviteCreator", fields: [invitedById], references: [id], onDelete: Cascade)
+  acceptedBy   User?         @relation("InviteAccepter", fields: [acceptedById], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, email, acceptedAt, canceledAt])
   @@index([expiresAt])
@@ -244,6 +253,8 @@ model ConversationMember {
   userId         String
   joinedAt       DateTime     @default(now())
   lastReadAt     DateTime?
+  muted          Boolean      @default(false)
+  pinned         Boolean      @default(false)
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -270,12 +281,12 @@ model Message {
   attachments     Attachment[]
   reactions       Reaction[]
 
+  @@unique([conversationId, authorId, clientMessageId])
+  @@unique([channelId, authorId, clientMessageId])
   @@index([conversationId, createdAt])
   @@index([channelId, createdAt])
   @@index([authorId, createdAt])
   @@index([replyToId])
-  @@unique([conversationId, authorId, clientMessageId])
-  @@unique([channelId, authorId, clientMessageId])
 }
 
 model Attachment {

@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import type { Server } from 'socket.io';
 import {
+  conversationPreferenceInputSchema,
+  directConversationCreateInputSchema,
+  groupConversationCreateInputSchema,
+  groupConversationUpdateInputSchema,
+  memberInputSchema,
   messageInputSchema,
   messageUpdateInputSchema,
   paginationQuerySchema,
@@ -221,6 +226,64 @@ async function countUnreadMessages(
   });
 }
 
+const conversationUserSelect = {
+  id: true,
+  username: true,
+  displayName: true,
+  avatarUrl: true,
+  status: true,
+} as const;
+
+const conversationMembersInclude = {
+  members: { include: { user: { select: conversationUserSelect } } },
+  _count: { select: { members: true } },
+} as const;
+
+function conversationDto(
+  conversation: {
+    id: string;
+    type: 'DIRECT' | 'GROUP';
+    name: string;
+    description: string | null;
+    avatarUrl: string | null;
+    workspaceId: string | null;
+    createdById: string | null;
+    members: {
+      userId: string;
+      muted: boolean;
+      pinned: boolean;
+      user: {
+        id: string;
+        username: string;
+        displayName: string;
+        avatarUrl: string | null;
+        status: 'ONLINE' | 'BUSY' | 'DO_NOT_DISTURB' | 'AWAY' | 'OFFLINE';
+      };
+    }[];
+    _count: { members: number };
+  },
+  userId: string,
+) {
+  const currentMember = conversation.members.find((member) => member.userId === userId);
+  const otherMember = conversation.members.find((member) => member.userId !== userId);
+  return {
+    id: conversation.id,
+    type: conversation.type,
+    name:
+      conversation.type === 'DIRECT'
+        ? (otherMember?.user.displayName ?? conversation.name)
+        : conversation.name,
+    description: conversation.description,
+    avatarUrl: conversation.avatarUrl,
+    workspaceId: conversation.workspaceId,
+    createdById: conversation.createdById,
+    memberCount: conversation._count.members,
+    muted: currentMember?.muted ?? false,
+    pinned: currentMember?.pinned ?? false,
+    members: conversation.members.map(({ user }) => user),
+  };
+}
+
 export function createApiRouter(io: Server) {
   const router = Router();
   attachAuthSocketServer(io);
@@ -246,15 +309,7 @@ export function createApiRouter(io: Server) {
             include: {
               members: {
                 include: {
-                  user: {
-                    select: {
-                      id: true,
-                      username: true,
-                      displayName: true,
-                      avatarUrl: true,
-                      status: true,
-                    },
-                  },
+                  user: { select: conversationUserSelect },
                 },
               },
               messages: {
@@ -267,20 +322,12 @@ export function createApiRouter(io: Server) {
             },
           },
         },
-        orderBy: { conversation: { updatedAt: 'desc' } },
+        orderBy: [{ pinned: 'desc' }, { conversation: { updatedAt: 'desc' } }],
       });
       return res.json(
         await Promise.all(
           memberships.map(async ({ conversation, lastReadAt, joinedAt }) => ({
-            id: conversation.id,
-            type: conversation.type,
-            name:
-              conversation.type === 'DIRECT'
-                ? (conversation.members.find(({ user }) => user.id !== req.userId)?.user
-                    .displayName ?? conversation.name)
-                : conversation.name,
-            description: conversation.description,
-            memberCount: conversation._count.members,
+            ...conversationDto(conversation, req.userId!),
             preview: conversation.messages[0]?.text,
             lastAt: conversation.messages[0]?.createdAt.toISOString(),
             unread: await countUnreadMessages(
@@ -288,7 +335,6 @@ export function createApiRouter(io: Server) {
               req.userId!,
               lastReadAt ?? joinedAt,
             ),
-            members: conversation.members.map(({ user }) => user),
           })),
         ),
       );
@@ -296,6 +342,351 @@ export function createApiRouter(io: Server) {
       return next(error);
     }
   });
+
+  router.post(
+    '/workspaces/:workspaceId/conversations/direct',
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const workspaceId = getRouteParam(req.params.workspaceId);
+        const input = directConversationCreateInputSchema.safeParse(req.body);
+        if (!input.success) {
+          return res.status(400).json({
+            error: { code: 'VALIDATION_ERROR', message: 'Selecione uma pessoa para iniciar a DM.' },
+          });
+        }
+        const targetUserId = input.data.targetUserId;
+        if (targetUserId === req.userId)
+          return res.status(400).json({
+            error: { code: 'SELF_CONVERSATION', message: 'Selecione outra pessoa para conversar.' },
+          });
+        const workspaceMembers = await prisma.workspaceMember.findMany({
+          where: { workspaceId, userId: { in: [req.userId!, targetUserId] } },
+          select: { userId: true, role: true },
+        });
+        if (workspaceMembers.length !== 2)
+          return res.status(404).json({
+            error: { code: 'PERSON_NOT_FOUND', message: 'Pessoa não encontrada neste espaço.' },
+          });
+        if (workspaceMembers.some(({ role }) => role === 'GUEST'))
+          return res.status(403).json({
+            error: {
+              code: 'GUEST_DIRECTORY_RESTRICTED',
+              message: 'A conversa direta não está disponível para convidados.',
+            },
+          });
+        const target = await prisma.user.findUnique({
+          where: { id: targetUserId },
+          select: { id: true, displayName: true },
+        });
+        if (!target)
+          return res.status(404).json({
+            error: { code: 'PERSON_NOT_FOUND', message: 'Pessoa não encontrada neste espaço.' },
+          });
+        const directKey = [req.userId!, targetUserId].sort().join(':');
+        let conversation;
+        try {
+          conversation = await prisma.conversation.upsert({
+            where: { directKey },
+            update: {},
+            create: {
+              type: 'DIRECT',
+              name: target.displayName,
+              workspaceId,
+              directKey,
+              createdById: req.userId!,
+              members: { create: [{ userId: req.userId! }, { userId: targetUserId }] },
+            },
+            include: conversationMembersInclude,
+          });
+        } catch (error) {
+          if ((error as { code?: string }).code !== 'P2002') throw error;
+          conversation = await prisma.conversation.findUnique({
+            where: { directKey },
+            include: conversationMembersInclude,
+          });
+          if (!conversation) throw error;
+        }
+        await io
+          .in([`user:${req.userId}`, `user:${targetUserId}`])
+          .socketsJoin(`conversation:${conversation.id}`);
+        io.to([`user:${req.userId}`, `user:${targetUserId}`]).emit('conversation:updated', {
+          conversationId: conversation.id,
+        });
+        return res.status(200).json(conversationDto(conversation, req.userId!));
+      } catch (error) {
+        return next(error);
+      }
+    },
+  );
+
+  router.post('/workspaces/:workspaceId/conversations', requireAuth, async (req, res, next) => {
+    try {
+      const workspaceId = getRouteParam(req.params.workspaceId);
+      const input = groupConversationCreateInputSchema.safeParse(req.body);
+      if (!input.success) {
+        return res.status(400).json({
+          error: { code: 'VALIDATION_ERROR', message: 'Confira o nome e as pessoas do grupo.' },
+        });
+      }
+      if (input.data.userIds.includes(req.userId!))
+        return res.status(400).json({
+          error: {
+            code: 'GROUP_MEMBER_DUPLICATE',
+            message: 'Você será incluído automaticamente no grupo.',
+          },
+        });
+      const requestedUserIds = [...input.data.userIds, req.userId!];
+      const workspaceMembers = await prisma.workspaceMember.findMany({
+        where: { workspaceId, userId: { in: requestedUserIds } },
+        select: { userId: true, role: true },
+      });
+      if (workspaceMembers.length !== requestedUserIds.length)
+        return res.status(404).json({
+          error: {
+            code: 'PERSON_NOT_FOUND',
+            message: 'Todas as pessoas precisam pertencer ao espaço.',
+          },
+        });
+      if (workspaceMembers.some(({ role }) => role === 'GUEST'))
+        return res.status(403).json({
+          error: {
+            code: 'GUEST_DIRECTORY_RESTRICTED',
+            message: 'Grupos não estão disponíveis para convidados.',
+          },
+        });
+      const conversation = await prisma.conversation.create({
+        data: {
+          type: 'GROUP',
+          name: input.data.name,
+          avatarUrl: input.data.avatarUrl ?? null,
+          workspaceId,
+          createdById: req.userId!,
+          members: { create: requestedUserIds.map((userId) => ({ userId })) },
+        },
+        include: conversationMembersInclude,
+      });
+      await io
+        .in(requestedUserIds.map((userId) => `user:${userId}`))
+        .socketsJoin(`conversation:${conversation.id}`);
+      io.to(requestedUserIds.map((userId) => `user:${userId}`)).emit('conversation:updated', {
+        conversationId: conversation.id,
+      });
+      return res.status(201).json(conversationDto(conversation, req.userId!));
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.patch('/conversations/:conversationId', requireAuth, async (req, res, next) => {
+    try {
+      const conversationId = getRouteParam(req.params.conversationId);
+      const input = groupConversationUpdateInputSchema.safeParse(req.body);
+      if (!input.success)
+        return res.status(400).json({
+          error: { code: 'VALIDATION_ERROR', message: 'Confira os dados do grupo.' },
+        });
+      const conversation = await prisma.conversation.findFirst({
+        where: {
+          id: conversationId,
+          type: 'GROUP',
+          members: { some: { userId: req.userId! } },
+        },
+        select: { createdById: true },
+      });
+      if (!conversation)
+        return res.status(404).json({
+          error: { code: 'CONVERSATION_NOT_FOUND', message: 'Grupo não encontrado.' },
+        });
+      if (conversation.createdById && conversation.createdById !== req.userId)
+        return res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Somente quem criou o grupo pode editar seus dados.',
+          },
+        });
+      const updated = await prisma.conversation.update({
+        where: { id: conversationId },
+        data: input.data,
+        select: { id: true, name: true, description: true, avatarUrl: true },
+      });
+      io.to(`conversation:${conversationId}`).emit('conversation:updated', { conversationId });
+      return res.json(updated);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.patch('/conversations/:conversationId/preference', requireAuth, async (req, res, next) => {
+    try {
+      const conversationId = getRouteParam(req.params.conversationId);
+      const input = conversationPreferenceInputSchema.safeParse(req.body);
+      if (!input.success)
+        return res.status(400).json({
+          error: { code: 'VALIDATION_ERROR', message: 'Informe ao menos uma preferência válida.' },
+        });
+      const membership = await prisma.conversationMember.findUnique({
+        where: { conversationId_userId: { conversationId, userId: req.userId! } },
+        select: { userId: true },
+      });
+      if (!membership)
+        return res.status(404).json({
+          error: { code: 'CONVERSATION_NOT_FOUND', message: 'Conversa não encontrada.' },
+        });
+      return res.json(
+        await prisma.conversationMember.update({
+          where: { conversationId_userId: { conversationId, userId: req.userId! } },
+          data: input.data,
+          select: { muted: true, pinned: true },
+        }),
+      );
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/conversations/:conversationId/members', requireAuth, async (req, res, next) => {
+    try {
+      const conversationId = getRouteParam(req.params.conversationId);
+      const input = memberInputSchema.safeParse(req.body);
+      if (!input.success)
+        return res.status(400).json({
+          error: { code: 'VALIDATION_ERROR', message: 'Selecione uma pessoa válida.' },
+        });
+      const targetUserId = input.data.userId;
+      const conversation = await prisma.conversation.findFirst({
+        where: {
+          id: conversationId,
+          type: 'GROUP',
+          members: { some: { userId: req.userId! } },
+        },
+        select: { workspaceId: true, createdById: true },
+      });
+      if (!conversation)
+        return res.status(404).json({
+          error: { code: 'CONVERSATION_NOT_FOUND', message: 'Grupo não encontrado.' },
+        });
+      if (conversation.createdById && conversation.createdById !== req.userId)
+        return res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Somente quem criou o grupo pode adicionar pessoas.',
+          },
+        });
+      const targetMembership = conversation.workspaceId
+        ? await prisma.workspaceMember.findUnique({
+            where: {
+              workspaceId_userId: { workspaceId: conversation.workspaceId, userId: targetUserId },
+            },
+            select: { role: true },
+          })
+        : await prisma.workspaceMember.findFirst({
+            where: {
+              userId: targetUserId,
+              workspace: { members: { some: { userId: req.userId! } } },
+            },
+            select: { role: true },
+          });
+      if (!targetMembership || targetMembership.role === 'GUEST')
+        return res.status(404).json({
+          error: { code: 'PERSON_NOT_FOUND', message: 'Pessoa não encontrada neste espaço.' },
+        });
+      const addResult = await prisma.$transaction(async (transaction) => {
+        await transaction.$queryRaw<{ id: string }[]>`
+          SELECT "id" FROM "Conversation" WHERE "id" = ${conversationId} FOR UPDATE
+        `;
+        const existing = await transaction.conversationMember.findUnique({
+          where: { conversationId_userId: { conversationId, userId: targetUserId } },
+          select: { userId: true },
+        });
+        if (existing) return { added: false, limitReached: false };
+        if ((await transaction.conversationMember.count({ where: { conversationId } })) >= 50)
+          return { added: false, limitReached: true };
+        await transaction.conversationMember.create({
+          data: { conversationId, userId: targetUserId },
+        });
+        await transaction.conversation.update({
+          where: { id: conversationId },
+          data: { updatedAt: new Date() },
+        });
+        return { added: true, limitReached: false };
+      });
+      if (addResult.limitReached)
+        return res.status(409).json({
+          error: { code: 'GROUP_MEMBER_LIMIT', message: 'O grupo chegou ao limite de 50 pessoas.' },
+        });
+      await io.in(`user:${targetUserId}`).socketsJoin(`conversation:${conversationId}`);
+      if (addResult.added)
+        io.to(`conversation:${conversationId}`).emit('conversation:updated', { conversationId });
+      return res.status(204).end();
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.delete(
+    '/conversations/:conversationId/members/:userId',
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const conversationId = getRouteParam(req.params.conversationId);
+        const targetUserId = getRouteParam(req.params.userId);
+        const conversation = await prisma.conversation.findFirst({
+          where: {
+            id: conversationId,
+            type: 'GROUP',
+            members: { some: { userId: req.userId! } },
+          },
+          select: {
+            createdById: true,
+            members: { select: { userId: true, joinedAt: true } },
+          },
+        });
+        if (!conversation)
+          return res.status(404).json({
+            error: { code: 'CONVERSATION_NOT_FOUND', message: 'Grupo não encontrado.' },
+          });
+        if (targetUserId !== req.userId && conversation.createdById !== req.userId)
+          return res.status(403).json({
+            error: { code: 'FORBIDDEN', message: 'Você só pode sair do grupo.' },
+          });
+        if (!conversation.members.some(({ userId }) => userId === targetUserId))
+          return res.status(404).json({
+            error: {
+              code: 'CONVERSATION_MEMBER_NOT_FOUND',
+              message: 'Pessoa não encontrada no grupo.',
+            },
+          });
+        await prisma.$transaction(async (transaction) => {
+          await transaction.conversationMember.delete({
+            where: { conversationId_userId: { conversationId, userId: targetUserId } },
+          });
+          const nextCreator =
+            conversation.createdById === targetUserId
+              ? await transaction.conversationMember.findFirst({
+                  where: { conversationId },
+                  orderBy: { joinedAt: 'asc' },
+                  select: { userId: true },
+                })
+              : null;
+          await transaction.conversation.update({
+            where: { id: conversationId },
+            data: {
+              updatedAt: new Date(),
+              ...(conversation.createdById === targetUserId
+                ? { createdById: nextCreator?.userId ?? null }
+                : {}),
+            },
+          });
+        });
+        io.to(`conversation:${conversationId}`).emit('conversation:updated', { conversationId });
+        await io.in(`user:${targetUserId}`).socketsLeave(`conversation:${conversationId}`);
+        return res.status(204).end();
+      } catch (error) {
+        return next(error);
+      }
+    },
+  );
 
   router.post('/conversations/:conversationId/read', requireAuth, async (req, res, next) => {
     try {

@@ -87,6 +87,14 @@ export const profileUpdateInputSchema = z
 
 const organizationNameSchema = z.string().trim().min(2).max(80);
 const descriptionSchema = z.string().trim().max(300).nullable().optional();
+const secureImageUrlSchema = z
+  .string()
+  .trim()
+  .url()
+  .max(2048)
+  .refine((value) => /^https:\/\//i.test(value), 'A imagem deve usar HTTPS.')
+  .nullable()
+  .optional();
 
 export const workspaceCreateInputSchema = z.object({ name: organizationNameSchema });
 export const workspaceUpdateInputSchema = z
@@ -128,6 +136,26 @@ export const workspaceInviteAcceptInputSchema = z.object({
   token: z.string().min(32).max(256),
 });
 export const memberInputSchema = z.object({ userId: z.string().min(1) });
+export const directConversationCreateInputSchema = z.object({ targetUserId: z.string().min(1) });
+export const groupConversationCreateInputSchema = z.object({
+  name: organizationNameSchema,
+  avatarUrl: secureImageUrlSchema,
+  userIds: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(49)
+    .refine((userIds) => new Set(userIds).size === userIds.length),
+});
+export const groupConversationUpdateInputSchema = z
+  .object({
+    name: organizationNameSchema.optional(),
+    description: descriptionSchema,
+    avatarUrl: secureImageUrlSchema,
+  })
+  .refine((value) => Object.keys(value).length > 0);
+export const conversationPreferenceInputSchema = z
+  .object({ muted: z.boolean().optional(), pinned: z.boolean().optional() })
+  .refine((value) => Object.keys(value).length > 0);
 export const channelPreferenceInputSchema = z
   .object({ favorite: z.boolean().optional(), hidden: z.boolean().optional() })
   .refine((value) => Object.keys(value).length > 0);
@@ -140,6 +168,7 @@ export const socketEvents = {
   reactionRemoved: 'reaction:removed',
   typing: 'typing',
   readUpdated: 'read:updated',
+  conversationUpdated: 'conversation:updated',
 } as const;
 
 export const paginationQuerySchema = z.object({
@@ -166,4 +195,7 @@ export type ChannelCreateInput = z.infer<typeof channelCreateInputSchema>;
 export type ChannelUpdateInput = z.infer<typeof channelUpdateInputSchema>;
 export type WorkspaceInviteInput = z.infer<typeof workspaceInviteInputSchema>;
 export type WorkspaceInviteAcceptInput = z.infer<typeof workspaceInviteAcceptInputSchema>;
+export type DirectConversationCreateInput = z.infer<typeof directConversationCreateInputSchema>;
+export type GroupConversationCreateInput = z.infer<typeof groupConversationCreateInputSchema>;
+export type GroupConversationUpdateInput = z.infer<typeof groupConversationUpdateInputSchema>;
 export type SocketEvent = (typeof socketEvents)[keyof typeof socketEvents];

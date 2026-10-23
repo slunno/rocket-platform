@@ -258,21 +258,32 @@ async function main() {
   ];
 
   for (const spec of directConversationSpecs) {
-    await prisma.conversation.upsert({
-      where: { id: spec.id },
-      update: { name: spec.name, description: spec.description, type: spec.type },
+    const directKey = [...spec.members].sort().join(':');
+    const conversation = await prisma.conversation.upsert({
+      where: { directKey },
+      update: {
+        name: spec.name,
+        description: spec.description,
+        type: spec.type,
+        workspaceId: workspace.id,
+        directKey,
+        createdById: 'demo-user',
+      },
       create: {
         id: spec.id,
         name: spec.name,
         description: spec.description,
         type: spec.type,
+        workspaceId: workspace.id,
+        directKey,
+        createdById: 'demo-user',
       },
     });
     for (const userId of spec.members) {
       await prisma.conversationMember.upsert({
-        where: { conversationId_userId: { conversationId: spec.id, userId } },
+        where: { conversationId_userId: { conversationId: conversation.id, userId } },
         update: {},
-        create: { conversationId: spec.id, userId },
+        create: { conversationId: conversation.id, userId },
       });
     }
   }
