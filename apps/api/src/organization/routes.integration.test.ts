@@ -571,7 +571,7 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
     expect(await directPreference.json()).toMatchObject({
       muted: true,
       pinned: true,
-      notificationLevel: 'ALL',
+      notificationLevel: 'MUTED',
     });
     const directList = (await (
       await request('GET', '/conversations', owner.accessToken)
