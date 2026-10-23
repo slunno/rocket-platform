@@ -155,9 +155,10 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 - **Entregue no checkout:** armazenamento S3 compatível com MinIO e configuração local/CI; upload direto com formulário pré-assinado, limite de 25 MiB por arquivo, até 10 anexos por mensagem, lista de tipos permitidos, nome sanitizado e verificação do conteúdo real antes da conclusão. Anexos são autorizados pela conversa/canal, `storageKey` não sai da API, downloads usam URL curta assinada e arquivos só aparecem depois de verificados. A interface aceita botão, arrastar, colar e progresso; mostra prévias/cartões e oferece busca/ordenação global e aba de arquivos do canal.
 - **Validação local:** `npm run build`, `npm run lint`, `npm run typecheck`, `npm test` (48 passaram; 3 testes de integração ignorados sem PostgreSQL local), `npm run format:check`, `git diff --check` e `npm audit --audit-level=moderate` passaram.
 - **CI #28:** falhou durante a inicialização do MinIO: `quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z` retornou `unauthorized`; migrações PostgreSQL passaram. O serviço local de teste foi trocado para `bitnamilegacy/minio:2025.7.23`; a imagem é antiga e sem atualizações, portanto deve ficar restrita ao desenvolvimento/CI.
+- **CI #29:** puxou a imagem MinIO, mas o processo não conseguiu gravar em `/data` (`file access denied`). O serviço foi ajustado para usar o diretório de dados da imagem Bitnami, `/bitnami/minio/data`; CI precisa ser repetido.
 - **Limite funcional:** anexos em respostas de tópico são rejeitados explicitamente; o compositor de respostas não oferece envio de arquivo.
 - **Pendências anteriores:** os Blocos 4 e 5 seguem com a validação visual multiusuário pendente por falta de um ambiente web/API com duas contas; essa conferência permanece registrada como desvio de ordem.
-- **Próxima etapa:** publicar a troca de imagem local e repetir o CI com PostgreSQL/MinIO; se o job passar, fechar o Bloco 6 e iniciar o Bloco 7.
+- **Próxima etapa:** publicar o diretório de dados correto e repetir o CI com PostgreSQL/MinIO; se o job passar, fechar o Bloco 6 e iniciar o Bloco 7.
 
 ### 2026-10-22 — Bloco 0 concluído
 
