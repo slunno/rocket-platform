@@ -4,7 +4,7 @@ Plataforma de comunicação corporativa da AKR Brands, em português do Brasil. 
 
 ## Estado do projeto
 
-Os **Blocos 0 a 3** estão concluídos. Os **Blocos 4 e 5** têm implementação e CI concluídos, mas ainda aguardam conferência visual entre duas contas pelo navegador integrado. O **Bloco 6 — Arquivos e anexos** está em andamento: upload e navegação de arquivos foram publicados em `main`, e a validação local passou; o CI precisa ser repetido após corrigirmos a origem da imagem MinIO usada em desenvolvimento/teste. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para critérios, status e pendências.
+Os **Blocos 0 a 3 e 6** estão concluídos. Os **Blocos 4 e 5** têm implementação e CI concluídos, mas ainda aguardam conferência visual entre duas contas pelo navegador integrado. O **Bloco 7 — Presença, atividade e notificações** está em andamento; adapter Redis, heartbeat/TTL e snapshot de presença autorizada estão sendo implementados. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para critérios, status e pendências.
 
 ## Status dos blocos
 
@@ -16,8 +16,8 @@ Os **Blocos 0 a 3** estão concluídos. Os **Blocos 4 e 5** têm implementação
 | 3 — Organização, equipes e canais            | ✅ Concluído    |
 | 4 — Mensageria completa                      | 🚧 Em andamento |
 | 5 — Chats 1:1 e em grupo                     | 🚧 Em andamento |
-| 6 — Arquivos e anexos                        | 🚧 Em andamento |
-| 7 — Presença, atividade e notificações       | ⏳ Pendente     |
+| 6 — Arquivos e anexos                        | ✅ Concluído    |
+| 7 — Presença, atividade e notificações       | 🚧 Em andamento |
 | 8 — Busca                                    | ⏳ Pendente     |
 | 9 — Calendário e reuniões                    | ⏳ Pendente     |
 | 10 — Abas de canal e produtividade           | ⏳ Pendente     |
@@ -116,6 +116,7 @@ Para formatar os arquivos suportados, use `npm run format`. O fluxo do GitHub Ac
 | `NODE_ENV`                    | `development`, `test` ou `production`; padrão `development`                     |
 | `API_PORT`                    | Porta da API; padrão `4000`                                                     |
 | `WEB_ORIGIN`                  | Origem CORS permitida; padrão `http://localhost:5173`                           |
+| `REDIS_URL`                   | Redis para adapter Socket.IO e presença; padrão local `redis://localhost:6379`  |
 | `VITE_API_URL`                | URL da API consumida pelo Vite; padrão `http://localhost:4000`                  |
 | `VITE_BRAND_NAME`             | Nome exibido na barra superior; padrão `Rocket`                                 |
 | `VITE_BRAND_LOGO_URL`         | URL opcional para a imagem da marca na barra superior                           |
@@ -129,4 +130,4 @@ A interface usa uma paleta monocromática concentrada em `apps/web/src/styles/to
 
 ## Próximas etapas
 
-O Bloco 6 de anexos aguarda CI verde após a correção da imagem de MinIO para desenvolvimento/teste; presença, atividade, notificações, busca, calendário, reuniões, produtividade e administração seguem nos próximos blocos de [`docs/ROADMAP.md`](docs/ROADMAP.md). Os CIs #25 e #26 validaram chats com PostgreSQL. Papéis e regras de acesso estão em [`docs/PERMISSOES.md`](docs/PERMISSOES.md); os endpoints estão em [`docs/API.md`](docs/API.md).
+O Bloco 7 está em implementação: presença distribuída com Redis é a etapa atual; feed de atividade, notificações e preferências ainda serão adicionados. Permanecem pendentes a conferência visual multiusuário dos Blocos 4 e 5 e os Blocos 8 a 12 de [`docs/ROADMAP.md`](docs/ROADMAP.md). Papéis e regras de acesso estão em [`docs/PERMISSOES.md`](docs/PERMISSOES.md); os endpoints estão em [`docs/API.md`](docs/API.md).

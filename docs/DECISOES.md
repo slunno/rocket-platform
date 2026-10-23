@@ -1,5 +1,11 @@
 # Decisões técnicas
 
+## 2026-10-23 — Presença distribuída
+
+- **Contexto:** sockets podem estar distribuídos entre instâncias da API, e o estado online não deve revelar membros fora das conversas ou canais acessíveis.
+- **Decisão:** usar `@socket.io/redis-adapter` e guardar sockets ativos em Redis com heartbeat de 20 segundos, TTL de 60 segundos e remoção atômica de sessões expiradas; entregar snapshots somente de membros compartilhados por conversas, canais privados autorizados ou equipes com canais públicos acessíveis.
+- **Consequência:** Redis precisa ficar em rede privada com autenticação/TLS em produção. Quando o Socket.IO escalar com long-polling habilitado, a implantação precisa configurar sessões persistentes (sticky sessions); o adapter distribui Pub/Sub e não armazena o estado do aplicativo.
+
 Registros curtos de contexto, decisão e consequência.
 
 ## 2026-10-22 — Construção do pacote compartilhado
