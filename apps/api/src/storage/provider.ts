@@ -4,7 +4,6 @@ import {
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
-  PutBucketCorsCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
@@ -30,7 +29,6 @@ export class S3StorageProvider {
       accessKey: string;
       secretKey: string;
       forcePathStyle: boolean;
-      allowedOrigin: string;
     },
   ) {
     this.client = new S3Client({
@@ -38,7 +36,6 @@ export class S3StorageProvider {
       region: options.region,
       forcePathStyle: options.forcePathStyle,
       credentials: { accessKeyId: options.accessKey, secretAccessKey: options.secretKey },
-      requestChecksumCalculation: 'WHEN_REQUIRED',
       maxAttempts: 2,
     });
   }
@@ -56,23 +53,6 @@ export class S3StorageProvider {
             if (name !== 'BucketAlreadyExists' && name !== 'BucketAlreadyOwnedByYou') throw error;
           }
         }
-
-        await this.client.send(
-          new PutBucketCorsCommand({
-            Bucket: this.options.bucket,
-            CORSConfiguration: {
-              CORSRules: [
-                {
-                  AllowedOrigins: [this.options.allowedOrigin],
-                  AllowedMethods: ['POST', 'GET', 'HEAD'],
-                  AllowedHeaders: ['*'],
-                  ExposeHeaders: ['ETag'],
-                  MaxAgeSeconds: 300,
-                },
-              ],
-            },
-          }),
-        );
       })();
     }
 
@@ -154,5 +134,4 @@ export const storageProvider = new S3StorageProvider({
   accessKey: env.STORAGE_ACCESS_KEY,
   secretKey: env.STORAGE_SECRET_KEY,
   forcePathStyle: env.STORAGE_FORCE_PATH_STYLE,
-  allowedOrigin: env.WEB_ORIGIN,
 });

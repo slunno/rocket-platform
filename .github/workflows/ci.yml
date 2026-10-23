@@ -46,6 +46,7 @@ jobs:
           docker run -d --name rocket-minio -p 9000:9000 \
             -e MINIO_ROOT_USER=rocket-minio \
             -e MINIO_ROOT_PASSWORD=rocket-minio-secret \
+            -e MINIO_API_CORS_ALLOW_ORIGIN=http://localhost:5173 \
             bitnamilegacy/minio:2025.7.23 \
             server /bitnami/minio/data --console-address ":9001"
           for attempt in $(seq 1 30); do

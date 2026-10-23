@@ -157,10 +157,10 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 - **CI #28:** falhou durante a inicialização do MinIO: `quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z` retornou `unauthorized`; migrações PostgreSQL passaram. O serviço local de teste foi trocado para `bitnamilegacy/minio:2025.7.23`; a imagem é antiga e sem atualizações, portanto deve ficar restrita ao desenvolvimento/CI.
 - **CI #29:** puxou a imagem MinIO, mas o processo não conseguiu gravar em `/data` (`file access denied`). O serviço foi ajustado para usar o diretório de dados da imagem Bitnami, `/bitnami/minio/data`; CI precisa ser repetido.
 - **CI #30:** a imagem iniciou e o fluxo de upload alcançou o teste integrado; a criação da mensagem com anexo recebeu 500. O harness de integração agora devolve o detalhe do erro para identificar a chamada S3 que falha.
-- **CI #31:** o MinIO respondeu `A header you provided implies functionality that is not implemented`. O cliente S3 foi configurado para enviar checksums de requisição somente quando exigidos; a compatibilidade precisa ser confirmada em novo CI.
+- **CI #31–32:** `PutBucketCors` falhou no MinIO legado com `A header you provided implies functionality that is not implemented`; a API não precisa alterar CORS do bucket durante cada operação. CORS agora é configurado globalmente no serviço MinIO via `MINIO_API_CORS_ALLOW_ORIGIN`, inclusive no Compose e no CI.
 - **Limite funcional:** anexos em respostas de tópico são rejeitados explicitamente; o compositor de respostas não oferece envio de arquivo.
 - **Pendências anteriores:** os Blocos 4 e 5 seguem com a validação visual multiusuário pendente por falta de um ambiente web/API com duas contas; essa conferência permanece registrada como desvio de ordem.
-- **Próxima etapa:** confirmar o ajuste de checksum no CI com PostgreSQL/MinIO e corrigir qualquer falha restante da integração.
+- **Próxima etapa:** validar no CI a configuração global de CORS e concluir o fluxo de upload/download integrado; corrigir qualquer falha restante.
 
 ### 2026-10-22 — Bloco 0 concluído
 
