@@ -352,10 +352,10 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
     const ownerId = (
       await prisma.user.findUniqueOrThrow({ where: { email: ownerEmail }, select: { id: true } })
     ).id;
+    const directPath = `/workspaces/${workspace.id}/conversations/direct`;
     expect(
       (await request('POST', directPath, owner.accessToken, { targetUserId: ownerId })).status,
     ).toBe(400);
-    const directPath = `/workspaces/${workspace.id}/conversations/direct`;
     const directResults = await Promise.all([
       request('POST', directPath, owner.accessToken, { targetUserId: memberId }),
       request('POST', directPath, member.accessToken, { targetUserId: ownerId }),
