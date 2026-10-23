@@ -266,6 +266,7 @@ router.get('/', async (req, res, next) => {
               a."createdAt",
               CASE
                 WHEN to_tsvector('portuguese', a."fileName") @@ websearch_to_tsquery('portuguese', ${q})
+                  OR position(lower(${q}) in lower(a."fileName")) > 0
                   THEN ts_headline('portuguese', a."fileName", websearch_to_tsquery('portuguese', ${q}), ${highlightOptions})
                 ELSE ts_headline('portuguese', m."text", websearch_to_tsquery('portuguese', ${q}), ${highlightOptions})
               END AS "snippet",
@@ -287,6 +288,7 @@ router.get('/', async (req, res, next) => {
               AND ${visibleMessage}
               AND (
                 to_tsvector('portuguese', a."fileName") @@ websearch_to_tsquery('portuguese', ${q})
+                OR position(lower(${q}) in lower(a."fileName")) > 0
                 OR to_tsvector('portuguese', m."text") @@ websearch_to_tsquery('portuguese', ${q})
               )
               ${messageFilters}
