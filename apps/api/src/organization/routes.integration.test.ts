@@ -568,7 +568,11 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
       { muted: true, pinned: true },
     );
     expect(directPreference.status).toBe(200);
-    expect(await directPreference.json()).toEqual({ muted: true, pinned: true });
+    expect(await directPreference.json()).toMatchObject({
+      muted: true,
+      pinned: true,
+      notificationLevel: 'ALL',
+    });
     const directList = (await (
       await request('GET', '/conversations', owner.accessToken)
     ).json()) as { id: string; muted: boolean; pinned: boolean }[];
