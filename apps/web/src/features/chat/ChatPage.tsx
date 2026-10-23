@@ -26,6 +26,7 @@ import {
   createWorkspace,
   createWorkspaceInvite,
   deleteMessage,
+  completeAttachmentUpload,
   editMessage,
   getChannelMembers,
   getChannelMessages,
@@ -47,6 +48,7 @@ import {
   removeConversationMember,
   removeTeamMember,
   sendChannelMessage,
+  uploadMessageAttachment,
   sendMessage,
   sendMessageReply,
   updateChannel,
@@ -76,8 +78,22 @@ import { ThreadPanel } from './components/ThreadPanel';
 import { OrganizationDialog, type OrganizationDialogState } from './components/OrganizationDialog';
 import { NewConversationDialog } from './components/NewConversationDialog';
 import type { MessageMentionOption } from './components/MessageContent';
+import { FilesBrowser } from '../files/FilesBrowser';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+
+function normalizeAttachmentName(fileName: string) {
+  const baseName = fileName.split(/[\\/]/).at(-1) ?? '';
+  const normalized = baseName
+    .normalize('NFC')
+    // Strip control characters before they reach metadata and download headers.
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .replace(/^\.+/, '')
+    .trim();
+  return Array.from(normalized).slice(0, 180).join('') || 'arquivo';
+}
 
 function sortConversationList(conversations: Conversation[]) {
   return [...conversations].sort((left, right) => {
@@ -134,6 +150,7 @@ export function ChatPage() {
     loadingOlder: boolean;
   }>({ nextCursor: null, loading: false, loadingOlder: false });
   const [showDetails, setShowDetails] = useState(false);
+  const [showChannelFiles, setShowChannelFiles] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showNewConversation, setShowNewConversation] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -163,6 +180,10 @@ export function ChatPage() {
   const conversationsRef = useRef<Conversation[]>([]);
   const workspaceIdRef = useRef(workspaceId);
   const resizeOrigin = useRef<{ x: number; width: number } | null>(null);
+  const messageSendAttempt = useRef<{ signature: string; clientMessageId: string }>({
+    signature: '',
+    clientMessageId: '',
+  });
   latestTokenRef.current = token;
   myIdRef.current = me.id;
   activeIdRef.current = activeId;
@@ -524,7 +545,7 @@ export function ChatPage() {
               conversation.id === parentId
                 ? {
                     ...conversation,
-                    lastMessage: normalized.text,
+                    lastMessage: normalized.text || (message.attachments?.length ? 'Anexo' : ''),
                     lastAt: normalized.createdAt ?? new Date().toISOString(),
                   }
                 : conversation,
@@ -557,6 +578,31 @@ export function ChatPage() {
         message: normalized,
       });
     });
+    socket.on(
+      'attachment:ready',
+      (event: {
+        messageId: string;
+        conversationId: string | null;
+        channelId: string | null;
+        attachment: {
+          id: string;
+          fileName: string;
+          mimeType: string;
+          sizeBytes: number;
+          createdAt: string;
+          uploadedAt: string | null;
+        };
+      }) => {
+        const parentId = event.conversationId ?? event.channelId;
+        if (!parentId) return;
+        dispatchMessage({
+          type: 'attachment-ready',
+          conversationId: parentId,
+          messageId: event.messageId,
+          attachment: event.attachment,
+        });
+      },
+    );
     socket.on(
       'read:updated',
       (event: { targetType: 'CHANNEL' | 'CONVERSATION'; targetId: string; lastReadAt: string }) => {
@@ -739,6 +785,7 @@ export function ChatPage() {
 
   useEffect(() => {
     setThreadRoot(null);
+    setShowChannelFiles(false);
   }, [activeId]);
 
   useEffect(() => {
@@ -952,45 +999,121 @@ export function ChatPage() {
     }
   };
 
-  const handleSend = async () => {
+  const handleSend = async (
+    files: File[] = [],
+    onProgress: (file: File, percentage: number) => void = () => undefined,
+  ) => {
     const cleanText = text.trim();
-    if (!cleanText || !active) return;
+    if ((!cleanText && files.length === 0) || !active) return;
+    if (!token && files.length) {
+      showToast('Entre na sua conta para enviar arquivos.');
+      throw new Error('É necessário entrar na conta para anexar arquivos.');
+    }
     handleTyping(false);
-    setText('');
-    const clientMessageId = crypto.randomUUID();
-    const temporaryId = `local-${clientMessageId}`;
-    const optimistic: Message = {
-      id: temporaryId,
-      clientMessageId,
-      author: me,
+    const attachmentInputs = files.map((file) => ({
+      fileName: normalizeAttachmentName(file.name),
+      mimeType: file.type,
+      sizeBytes: file.size,
+    }));
+    const signature = JSON.stringify({
+      conversationId: active.id,
       text: cleanText,
-      createdAt: new Date().toISOString(),
-      time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(
-        new Date(),
-      ),
-      date: new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(new Date()),
-      mine: true,
-    };
-    dispatchMessage({ type: 'optimistic-added', conversationId: active.id, message: optimistic });
-    if (token) {
-      try {
-        const created =
-          active.kind === 'CHANNEL'
-            ? await sendChannelMessage(token, active.id, cleanText, clientMessageId)
-            : await sendMessage(token, active.id, cleanText, clientMessageId);
+      files: files.map((file) => [file.name, file.type, file.size, file.lastModified]),
+    });
+    if (messageSendAttempt.current.signature !== signature) {
+      messageSendAttempt.current = { signature, clientMessageId: crypto.randomUUID() };
+    }
+    const clientMessageId = messageSendAttempt.current.clientMessageId;
+    const temporaryId = `local-${clientMessageId}`;
+    if (cleanText) {
+      const now = new Date();
+      const optimistic: Message = {
+        id: temporaryId,
+        clientMessageId,
+        author: me,
+        text: cleanText,
+        createdAt: now.toISOString(),
+        time: new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(now),
+        date: new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(now),
+        mine: true,
+      };
+      dispatchMessage({ type: 'optimistic-added', conversationId: active.id, message: optimistic });
+    }
+    if (!token) {
+      messageSendAttempt.current = { signature: '', clientMessageId: '' };
+      return;
+    }
+
+    let createdOnServer = false;
+    try {
+      const created =
+        active.kind === 'CHANNEL'
+          ? await sendChannelMessage(token, active.id, cleanText, clientMessageId, attachmentInputs)
+          : await sendMessage(token, active.id, cleanText, clientMessageId, attachmentInputs);
+      createdOnServer = true;
+      dispatchMessage({
+        type: 'message-created',
+        conversationId: active.id,
+        message: mapRemoteMessage(created, me.id),
+      });
+
+      const uploads = new Map(
+        (created.uploads ?? []).map((upload) => [upload.attachmentId, upload]),
+      );
+      const usedAttachmentIds = new Set<string>();
+      const completedAttachments = new Map<
+        string,
+        Awaited<ReturnType<typeof completeAttachmentUpload>>
+      >();
+      for (const file of files) {
+        const attachment = (created.attachments ?? []).find(
+          (candidate) =>
+            !usedAttachmentIds.has(candidate.id) &&
+            candidate.fileName === normalizeAttachmentName(file.name) &&
+            candidate.mimeType === file.type &&
+            candidate.sizeBytes === file.size,
+        );
+        if (!attachment) throw new Error('O arquivo anexado não foi reconhecido pelo servidor.');
+        usedAttachmentIds.add(attachment.id);
+        if (attachment.uploadedAt) continue;
+        const upload = uploads.get(attachment.id);
+        if (!upload)
+          throw new Error('O link temporário do arquivo expirou. Tente enviar novamente.');
+        await uploadMessageAttachment(upload, file, (percentage) => onProgress(file, percentage));
+        completedAttachments.set(
+          attachment.id,
+          await completeAttachmentUpload(token, attachment.id),
+        );
+      }
+      if (completedAttachments.size) {
         dispatchMessage({
-          type: 'message-created',
+          type: 'message-updated',
           conversationId: active.id,
-          message: mapRemoteMessage(created, me.id),
+          message: mapRemoteMessage(
+            {
+              ...created,
+              attachments: (created.attachments ?? []).map(
+                (attachment) => completedAttachments.get(attachment.id) ?? attachment,
+              ),
+            },
+            me.id,
+          ),
         });
-      } catch {
+      }
+      messageSendAttempt.current = { signature: '', clientMessageId: '' };
+    } catch (error) {
+      if (!createdOnServer && cleanText)
         dispatchMessage({
           type: 'send-failed',
           conversationId: active.id,
           temporaryId,
         });
-        showToast('Não foi possível enviar a mensagem. Confira sua conexão e tente novamente.');
-      }
+      showToast(
+        createdOnServer
+          ? 'A mensagem foi criada, mas um arquivo não terminou de enviar. Tente novamente.'
+          : 'Não foi possível enviar a mensagem. Confira sua conexão e tente novamente.',
+      );
+      throw error;
     }
   };
 
@@ -1392,6 +1515,7 @@ export function ChatPage() {
             active={active}
             isChannel={isChannel}
             showDetails={showDetails}
+            showFiles={showChannelFiles}
             getOtherPerson={(conversation) =>
               conversation.members.find((person) => person.id !== me.id) ??
               conversation.members[0] ??
@@ -1401,48 +1525,68 @@ export function ChatPage() {
             onSearch={() => setShowSearch(true)}
             onCall={() => showToast('Chamadas de áudio e vídeo em breve.')}
             onToggleDetails={() => setShowDetails((value) => !value)}
+            onShowMessages={() => setShowChannelFiles(false)}
+            onShowFiles={() => setShowChannelFiles(true)}
             onMore={() => showToast('Mais opções de conversa em breve.')}
           />
           <div className="conversation-layout">
-            <section className="chat-column">
-              <MessageFeed
-                active={active}
-                isChannel={isChannel}
-                activeMessages={activeMessages}
-                dateGroups={dateGroups}
-                messagesEndRef={messagesEndRef}
-                nextCursor={messagePages[activeId]?.nextCursor ?? null}
-                lastReadAt={messagePages[activeId]?.lastReadAt}
-                isLoadingOlder={messagePages[activeId]?.loadingOlder ?? false}
-                onLoadOlder={loadOlderMessages}
-                me={me}
-                onShowDetails={() => setShowDetails(true)}
-                onToggleReaction={handleToggleReaction}
-                onEditMessage={handleEditMessage}
-                onDeleteMessage={handleDeleteMessage}
-                mentionOptions={mentionOptions}
-                onOpenThread={(message) => {
-                  setThreadRoot(message);
-                  setShowDetails(false);
-                }}
-              />
-              <MessageComposer
-                activeName={active.name}
-                isChannel={isChannel}
-                text={text}
-                setText={setText}
-                onSend={handleSend}
-                onToast={showToast}
-                onTyping={handleTyping}
-                typingNames={(
-                  typingUsers[
-                    `${active.kind === 'CHANNEL' ? 'CHANNEL' : 'CONVERSATION'}:${active.id}`
-                  ] ?? []
-                ).map(({ displayName }) => displayName)}
-                mentionOptions={mentionOptions}
-              />
+            <section
+              className="chat-column"
+              id={isChannel ? 'channel-content' : undefined}
+              role={isChannel ? 'tabpanel' : undefined}
+              aria-label={
+                isChannel
+                  ? showChannelFiles
+                    ? 'Arquivos do canal'
+                    : 'Publicações do canal'
+                  : undefined
+              }
+            >
+              {showChannelFiles && isChannel ? (
+                <FilesBrowser channelId={active.id} channelName={active.name} />
+              ) : (
+                <>
+                  <MessageFeed
+                    active={active}
+                    isChannel={isChannel}
+                    activeMessages={activeMessages}
+                    dateGroups={dateGroups}
+                    messagesEndRef={messagesEndRef}
+                    nextCursor={messagePages[activeId]?.nextCursor ?? null}
+                    lastReadAt={messagePages[activeId]?.lastReadAt}
+                    isLoadingOlder={messagePages[activeId]?.loadingOlder ?? false}
+                    onLoadOlder={loadOlderMessages}
+                    me={me}
+                    token={token}
+                    onShowDetails={() => setShowDetails(true)}
+                    onToggleReaction={handleToggleReaction}
+                    onEditMessage={handleEditMessage}
+                    onDeleteMessage={handleDeleteMessage}
+                    mentionOptions={mentionOptions}
+                    onOpenThread={(message) => {
+                      setThreadRoot(message);
+                      setShowDetails(false);
+                    }}
+                  />
+                  <MessageComposer
+                    activeName={active.name}
+                    isChannel={isChannel}
+                    text={text}
+                    setText={setText}
+                    onSend={handleSend}
+                    onToast={showToast}
+                    onTyping={handleTyping}
+                    typingNames={(
+                      typingUsers[
+                        `${active.kind === 'CHANNEL' ? 'CHANNEL' : 'CONVERSATION'}:${active.id}`
+                      ] ?? []
+                    ).map(({ displayName }) => displayName)}
+                    mentionOptions={mentionOptions}
+                  />
+                </>
+              )}
             </section>
-            {threadRoot ? (
+            {showChannelFiles && isChannel ? null : threadRoot ? (
               <ThreadPanel
                 root={threadRoot}
                 replies={threadReplies}

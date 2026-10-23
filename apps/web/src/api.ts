@@ -343,6 +343,39 @@ export type RemoteMessage = {
     users: { id: string; displayName: string }[];
     _count: { userId: number };
   }[];
+  attachments?: RemoteAttachment[];
+  uploads?: RemoteUpload[];
+};
+
+export type RemoteAttachment = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+  uploadedAt: string | null;
+};
+
+export type RemoteUpload = {
+  attachmentId: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  url: string;
+  fields: Record<string, string>;
+};
+
+export type RemoteFile = RemoteAttachment & {
+  message: {
+    id: string;
+    text: string;
+    createdAt: string;
+    author: { id: string; displayName: string };
+    location?:
+      | { type: 'CHANNEL'; channelId: string; channelName: string; teamName: string }
+      | { type: 'CHAT'; conversationId: string | null; conversationName: string };
+    channel?: { id: string; name: string; team: { name: string } } | null;
+  };
 };
 
 export type RemoteMessagePage = {
@@ -433,21 +466,102 @@ export const getChannelMessages = (token: string, id: string, cursor?: string) =
     token,
   );
 export const getOrganizationChannelMessages = getChannelMessages;
-export const sendMessage = (token: string, id: string, text: string, clientMessageId: string) =>
+export type AttachmentUploadInput = Pick<RemoteAttachment, 'fileName' | 'mimeType' | 'sizeBytes'>;
+
+export const sendMessage = (
+  token: string,
+  id: string,
+  text: string,
+  clientMessageId: string,
+  attachments: AttachmentUploadInput[] = [],
+) =>
   request<RemoteMessage>(`/api/conversations/${id}/messages`, token, {
     method: 'POST',
-    body: JSON.stringify({ text, clientMessageId }),
+    body: JSON.stringify({ text, clientMessageId, attachments }),
   });
 export const sendChannelMessage = (
   token: string,
   id: string,
   text: string,
   clientMessageId: string,
+  attachments: AttachmentUploadInput[] = [],
 ) =>
   request<RemoteMessage>(`/api/channels/${encodeURIComponent(id)}/messages`, token, {
     method: 'POST',
-    body: JSON.stringify({ text, clientMessageId }),
+    body: JSON.stringify({ text, clientMessageId, attachments }),
   });
+
+export function uploadMessageAttachment(
+  upload: RemoteUpload,
+  file: File,
+  onProgress: (percentage: number) => void,
+) {
+  return new Promise<void>((resolve, reject) => {
+    const form = new FormData();
+    Object.entries(upload.fields).forEach(([key, value]) => form.append(key, value));
+    form.append('file', file, file.name);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', upload.url);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable)
+        onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+    };
+    xhr.onerror = () => reject(new Error('A conexão com o armazenamento falhou.'));
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error('O armazenamento recusou o arquivo.'));
+    };
+    xhr.send(form);
+  });
+}
+
+export const completeAttachmentUpload = (token: string, attachmentId: string) =>
+  request<RemoteAttachment>(
+    `/api/attachments/${encodeURIComponent(attachmentId)}/complete`,
+    token,
+    { method: 'POST' },
+  );
+
+export const getAttachmentDownloadUrl = (
+  token: string,
+  attachmentId: string,
+  disposition: 'inline' | 'attachment' = 'attachment',
+) =>
+  request<{ url: string; expiresIn: number }>(
+    `/api/attachments/${encodeURIComponent(attachmentId)}/download-url?disposition=${disposition}`,
+    token,
+  );
+
+export async function getFiles(
+  token: string,
+  options: { query?: string; sortBy?: 'recent' | 'name' | 'size'; limit?: number } = {},
+) {
+  const params = new URLSearchParams();
+  if (options.query) params.set('query', options.query);
+  if (options.sortBy) params.set('sortBy', options.sortBy);
+  if (options.limit) params.set('limit', String(options.limit));
+  const suffix = params.size ? `?${params.toString()}` : '';
+  return request<{ items: RemoteFile[]; total: number; hasMore: boolean }>(
+    `/api/files${suffix}`,
+    token,
+  );
+}
+
+export async function getChannelFiles(
+  token: string,
+  channelId: string,
+  options: { query?: string; sortBy?: 'recent' | 'name' | 'size'; limit?: number } = {},
+) {
+  const params = new URLSearchParams();
+  if (options.query) params.set('query', options.query);
+  if (options.sortBy) params.set('sortBy', options.sortBy);
+  if (options.limit) params.set('limit', String(options.limit));
+  const suffix = params.size ? `?${params.toString()}` : '';
+  return request<{ items: RemoteFile[]; total: number; hasMore: boolean }>(
+    `/api/channels/${encodeURIComponent(channelId)}/files${suffix}`,
+    token,
+  );
+}
 
 export const getMessageReplies = (token: string, messageId: string, cursor?: string) =>
   request<RemoteMessagePage>(
@@ -579,5 +693,6 @@ export function mapRemoteMessage(message: RemoteMessage, myId: string): Message 
       active: reaction.users.some(({ id }) => id === myId),
       users: reaction.users.map(({ displayName }) => displayName),
     })),
+    attachments: (message.attachments ?? []).map((attachment) => ({ ...attachment })),
   };
 }

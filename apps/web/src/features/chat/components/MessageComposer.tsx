@@ -1,6 +1,27 @@
-import { useId, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import {
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type Dispatch,
+  type DragEvent,
+  type SetStateAction,
+} from 'react';
 import { AtSign, MessageCircle, Paperclip, Send, Smile } from 'lucide-react';
+import { MAX_ATTACHMENT_SIZE_BYTES, MAX_ATTACHMENTS_PER_MESSAGE } from '@rocket/shared';
 import type { MessageMentionOption } from './MessageContent';
+
+const acceptedMimeTypes = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'application/pdf',
+  'text/plain',
+]);
+
+const fileKey = (file: File) => `${file.name}:${file.size}:${file.lastModified}`;
 
 function getMentionQuery(value: string, caret: number) {
   const beforeCaret = value.slice(0, caret);
@@ -24,7 +45,7 @@ export function MessageComposer({
   isChannel: boolean;
   text: string;
   setText: Dispatch<SetStateAction<string>>;
-  onSend: () => Promise<void>;
+  onSend: (files: File[], onProgress: (file: File, percentage: number) => void) => Promise<void>;
   onToast: (message: string) => void;
   onTyping: (isTyping: boolean) => void;
   typingNames: string[];
@@ -37,6 +58,11 @@ export function MessageComposer({
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [activeMentionIndex, setActiveMentionIndex] = useState(0);
   const [showFormattingHelp, setShowFormattingHelp] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [progress, setProgress] = useState<Record<string, number>>({});
+  const [isSending, setIsSending] = useState(false);
+  const [isDropTarget, setIsDropTarget] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const suggestions = useMemo(() => {
     if (mentionQuery === null) return [];
     return mentionOptions
@@ -77,13 +103,121 @@ export function MessageComposer({
     if (option) insertMention(option);
   };
 
+  const addFiles = (selectedFiles: File[]) => {
+    if (compact || isSending) return;
+    const valid: File[] = [];
+    let rejected = false;
+    for (const file of selectedFiles) {
+      const extension = file.name.match(/\.[^.]+$/)?.[0]?.toLowerCase();
+      const validTextName =
+        file.type !== 'text/plain' || ['.txt', '.md', '.log'].includes(extension ?? '');
+      if (
+        !acceptedMimeTypes.has(file.type) ||
+        !validTextName ||
+        file.size < 1 ||
+        file.size > MAX_ATTACHMENT_SIZE_BYTES
+      ) {
+        rejected = true;
+      } else {
+        valid.push(file);
+      }
+    }
+    const unique = valid.filter(
+      (file, index) =>
+        valid.findIndex((candidate) => fileKey(candidate) === fileKey(file)) === index &&
+        !files.some((candidate) => fileKey(candidate) === fileKey(file)),
+    );
+    if (files.length + unique.length > MAX_ATTACHMENTS_PER_MESSAGE) rejected = true;
+    setFiles((current) => [...current, ...unique].slice(0, MAX_ATTACHMENTS_PER_MESSAGE));
+    if (rejected)
+      onToast(
+        'Alguns arquivos foram ignorados. Use tipos permitidos, até 25 MiB e no máximo 10 anexos.',
+      );
+  };
+
+  const submit = async () => {
+    if (isSending || (!text.trim() && !files.length)) return;
+    setIsSending(true);
+    setProgress({});
+    try {
+      await onSend(files, (file, percentage) => {
+        setProgress((current) => ({ ...current, [fileKey(file)]: percentage }));
+      });
+      setFiles([]);
+      setText('');
+    } catch {
+      // Mantém os arquivos selecionados para permitir uma nova tentativa.
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const pasteFiles = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const pastedFiles = Array.from(event.clipboardData.files);
+    if (pastedFiles.length) {
+      event.preventDefault();
+      addFiles(pastedFiles);
+    }
+  };
+
+  const dropFiles = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDropTarget(false);
+    addFiles(Array.from(event.dataTransfer.files));
+  };
+
   return (
-    <div className={compact ? 'thread-composer-wrap' : 'composer-wrap'}>
+    <div
+      className={`${compact ? 'thread-composer-wrap' : 'composer-wrap'} ${isDropTarget ? 'composer-drop-target' : ''}`}
+      onDragOver={(event) => {
+        if (compact) return;
+        event.preventDefault();
+        setIsDropTarget(true);
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+          setIsDropTarget(false);
+      }}
+      onDrop={dropFiles}
+    >
       <div className={compact ? 'thread-composer' : 'composer'}>
+        {!compact && files.length > 0 && (
+          <ul className="composer-attachments" aria-label="Arquivos anexados">
+            {files.map((file) => {
+              const value = progress[fileKey(file)];
+              return (
+                <li key={fileKey(file)}>
+                  <span className="composer-file-name">{file.name}</span>
+                  <span className="composer-file-size">
+                    {file.size >= 1024 * 1024
+                      ? `${(file.size / (1024 * 1024)).toFixed(1)} MiB`
+                      : `${Math.max(1, Math.round(file.size / 1024))} KiB`}
+                  </span>
+                  {value !== undefined && (
+                    <progress aria-label={`Envio de ${file.name}`} max={100} value={value} />
+                  )}
+                  <button
+                    type="button"
+                    aria-label={`Remover ${file.name}`}
+                    disabled={isSending}
+                    onClick={() =>
+                      setFiles((current) =>
+                        current.filter((item) => fileKey(item) !== fileKey(file)),
+                      )
+                    }
+                  >
+                    ×
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
         <textarea
           ref={textareaRef}
           rows={compact ? 2 : 1}
           value={text}
+          disabled={isSending}
           onChange={(event) => {
             const nextText = event.target.value;
             setText(nextText);
@@ -91,6 +225,7 @@ export function MessageComposer({
             setActiveMentionIndex(0);
             onTyping(Boolean(nextText.trim()));
           }}
+          onPaste={pasteFiles}
           onKeyDown={(event) => {
             if (suggestions.length) {
               if (event.key === 'ArrowDown') {
@@ -118,7 +253,7 @@ export function MessageComposer({
             }
             if (event.key === 'Enter' && !event.shiftKey) {
               event.preventDefault();
-              void onSend();
+              void submit();
             }
           }}
           placeholder={
@@ -164,6 +299,7 @@ export function MessageComposer({
                 type="button"
                 title="Formatação"
                 aria-label="Ajuda de formatação"
+                disabled={isSending}
                 aria-expanded={showFormattingHelp}
                 onClick={() => setShowFormattingHelp((current) => !current)}
               >
@@ -174,14 +310,29 @@ export function MessageComposer({
                 type="button"
                 title="Anexar arquivo"
                 aria-label="Anexar arquivo"
-                onClick={() => onToast('Envio de arquivos em breve.')}
+                disabled={isSending}
+                onClick={() => fileInputRef.current?.click()}
               >
                 <Paperclip size={17} />
               </button>
+              <input
+                ref={fileInputRef}
+                className="sr-only"
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain,.txt,.md,.log"
+                aria-label="Selecionar arquivos para anexar"
+                disabled={isSending}
+                onChange={(event) => {
+                  addFiles(Array.from(event.target.files ?? []));
+                  event.target.value = '';
+                }}
+              />
               <button
                 type="button"
                 title="Emoji"
                 aria-label="Inserir emoji"
+                disabled={isSending}
                 onClick={() => setText((current) => `${current} 😊`)}
               >
                 <Smile size={17} />
@@ -190,6 +341,7 @@ export function MessageComposer({
                 type="button"
                 title="Mencionar alguém"
                 aria-label="Mencionar alguém"
+                disabled={isSending}
                 onClick={() => {
                   const textarea = textareaRef.current;
                   const caret = textarea?.selectionStart ?? text.length;
@@ -211,8 +363,8 @@ export function MessageComposer({
               <button
                 className="send-button"
                 type="button"
-                onClick={() => void onSend()}
-                disabled={!text.trim()}
+                onClick={() => void submit()}
+                disabled={isSending || (!text.trim() && files.length === 0)}
                 aria-label="Enviar mensagem"
               >
                 <Send size={16} />
@@ -226,7 +378,7 @@ export function MessageComposer({
             type="button"
             aria-label="Enviar resposta"
             disabled={!text.trim()}
-            onClick={() => void onSend()}
+            onClick={() => void submit()}
           >
             {text.trim() ? <Send size={16} /> : <MessageCircle size={16} />}
           </button>

@@ -18,6 +18,15 @@ export type Reaction = {
   users?: string[];
 };
 
+export type MessageAttachment = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+  uploadedAt: string | null;
+};
+
 export type Message = {
   id: string;
   clientMessageId?: string;
@@ -32,6 +41,7 @@ export type Message = {
   replyToId?: string;
   reactions?: Reaction[];
   replyCount?: number;
+  attachments?: MessageAttachment[];
 };
 
 export type Conversation = {

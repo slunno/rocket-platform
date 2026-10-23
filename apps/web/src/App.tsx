@@ -6,6 +6,7 @@ import { EmptyRoutePage } from './features/activity/EmptyRoutePage';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { AuthPage } from './auth/AuthPage';
 import { InviteAcceptPage } from './auth/InviteAcceptPage';
+import { FilesBrowser } from './features/files/FilesBrowser';
 
 function LoadingSession() {
   return (
@@ -76,15 +77,7 @@ export function AppRoutes() {
               />
             }
           />
-          <Route
-            path="arquivos"
-            element={
-              <EmptyRoutePage
-                title="Arquivos"
-                description="Arquivos compartilhados nas conversas ficarão reunidos aqui."
-              />
-            }
-          />
+          <Route path="arquivos" element={<FilesBrowser />} />
           <Route
             path="chamadas"
             element={

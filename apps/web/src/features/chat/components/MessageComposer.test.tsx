@@ -9,7 +9,15 @@ import { MessageComposer } from './MessageComposer';
 
 afterEach(cleanup);
 
-function ComposerHarness({ isChannel = false }: { isChannel?: boolean }) {
+function ComposerHarness({
+  isChannel = false,
+  onSend = vi.fn(async () => undefined),
+  onToast = vi.fn(),
+}: {
+  isChannel?: boolean;
+  onSend?: (files: File[], onProgress: (file: File, percentage: number) => void) => Promise<void>;
+  onToast?: (message: string) => void;
+}) {
   const [text, setText] = useState('');
   return (
     <MessageComposer
@@ -17,8 +25,8 @@ function ComposerHarness({ isChannel = false }: { isChannel?: boolean }) {
       isChannel={isChannel}
       text={text}
       setText={setText}
-      onSend={vi.fn(async () => undefined)}
-      onToast={vi.fn()}
+      onSend={onSend}
+      onToast={onToast}
       onTyping={vi.fn()}
       typingNames={[]}
       mentionOptions={[
@@ -54,5 +62,32 @@ describe('MessageComposer', () => {
     await user.keyboard('{Enter}');
 
     expect(textarea).toHaveValue('@canal ');
+  });
+
+  it('anexa arquivos permitidos pelo seletor e os envia com a mensagem', async () => {
+    const user = userEvent.setup();
+    const onSend = vi.fn(async () => undefined);
+    render(<ComposerHarness onSend={onSend} />);
+    const file = new File(['%PDF-1.7'], 'colecao.pdf', { type: 'application/pdf' });
+
+    await user.upload(screen.getByLabelText('Selecionar arquivos para anexar'), file);
+    expect(screen.getByText('colecao.pdf')).toBeVisible();
+    const sendButton = screen.getByRole('button', { name: 'Enviar mensagem' });
+    expect(sendButton).toBeEnabled();
+    await user.click(sendButton);
+
+    expect(onSend).toHaveBeenCalledWith([file], expect.any(Function));
+  });
+
+  it('não aceita arquivos SVG', async () => {
+    const user = userEvent.setup();
+    const onToast = vi.fn();
+    render(<ComposerHarness onToast={onToast} />);
+    const file = new File(['<svg/>'], 'icone.svg', { type: 'image/svg+xml' });
+
+    await user.upload(screen.getByLabelText('Selecionar arquivos para anexar'), file);
+
+    expect(screen.queryByText('icone.svg')).not.toBeInTheDocument();
+    expect(onToast).not.toHaveBeenCalled();
   });
 });

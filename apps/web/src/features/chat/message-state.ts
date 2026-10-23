@@ -1,4 +1,4 @@
-import type { Message } from '../../types';
+import type { Message, MessageAttachment } from '../../types';
 
 export type MessageState = Record<string, Message[]>;
 
@@ -8,6 +8,12 @@ export type MessageAction =
   | { type: 'optimistic-added'; conversationId: string; message: Message }
   | { type: 'message-created'; conversationId: string; message: Message }
   | { type: 'message-updated'; conversationId: string; message: Message }
+  | {
+      type: 'attachment-ready';
+      conversationId: string;
+      messageId: string;
+      attachment: MessageAttachment;
+    }
   | { type: 'message-deleted'; conversationId: string; messageId: string }
   | { type: 'send-failed'; conversationId: string; temporaryId: string };
 
@@ -66,6 +72,21 @@ export function messagesReducer(state: MessageState, action: MessageAction): Mes
         ),
       };
     }
+    case 'attachment-ready':
+      return {
+        ...state,
+        [action.conversationId]: current.map((message) =>
+          message.id === action.messageId
+            ? {
+                ...message,
+                attachments: [
+                  ...(message.attachments ?? []).filter(({ id }) => id !== action.attachment.id),
+                  action.attachment,
+                ],
+              }
+            : message,
+        ),
+      };
     case 'message-deleted':
       return {
         ...state,

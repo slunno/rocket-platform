@@ -3,6 +3,7 @@ import { Hash, MessageCircle, MoreHorizontal, Plus, Smile } from 'lucide-react';
 import { Avatar } from '../../../components/ui/Avatar';
 import type { Conversation, Message, Person } from '../../../types';
 import { MessageContent, type MessageMentionOption } from './MessageContent';
+import { MessageAttachments } from './MessageAttachments';
 
 type MessageGroup = { date: string; messages: Message[] };
 
@@ -17,6 +18,7 @@ export function MessageFeed({
   isLoadingOlder,
   onLoadOlder,
   me,
+  token,
   onShowDetails,
   onToggleReaction,
   onEditMessage,
@@ -34,6 +36,7 @@ export function MessageFeed({
   isLoadingOlder: boolean;
   onLoadOlder: () => Promise<void>;
   me: Person;
+  token: string | null;
   onShowDetails: () => void;
   onToggleReaction: (messageId: string, emoji: string, active: boolean) => Promise<void>;
   onEditMessage: (messageId: string, text: string) => Promise<boolean>;
@@ -175,7 +178,10 @@ export function MessageFeed({
                     ) : message.deleted ? (
                       <p className="message-text message-deleted">Esta mensagem foi excluída.</p>
                     ) : (
-                      <MessageContent text={message.text} mentionOptions={mentionOptions} />
+                      <>
+                        <MessageContent text={message.text} mentionOptions={mentionOptions} />
+                        <MessageAttachments attachments={message.attachments ?? []} token={token} />
+                      </>
                     )}
                     {!message.deleted && message.reactions?.length ? (
                       <div className="reaction-row" role="group" aria-label="Reações">

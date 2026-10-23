@@ -83,6 +83,37 @@ describe('reducer de mensagens', () => {
     expect(afterDelete.conversation[0]).toMatchObject({ text: 'Atualizada.', deleted: true });
   });
 
+  it('marca um anexo como pronto quando chega a confirmação pelo socket', () => {
+    const pending = message('message-1', {
+      attachments: [
+        {
+          id: 'attachment-1',
+          fileName: 'colecao.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 128,
+          createdAt: '2026-10-23T10:00:00.000Z',
+          uploadedAt: null,
+        },
+      ],
+    });
+    const ready = {
+      ...pending.attachments![0]!,
+      uploadedAt: '2026-10-23T10:01:00.000Z',
+    };
+
+    const result = messagesReducer(
+      { conversation: [pending] },
+      {
+        type: 'attachment-ready',
+        conversationId: 'conversation',
+        messageId: pending.id,
+        attachment: ready,
+      },
+    );
+
+    expect(result.conversation[0]?.attachments).toEqual([ready]);
+  });
+
   it('reconcilia uma resposta otimista com a confirmação do servidor sem duplicar', () => {
     const optimistic = message('local-reply', { clientMessageId: 'client-reply' });
     const confirmed = message('server-reply', { clientMessageId: 'client-reply' });
