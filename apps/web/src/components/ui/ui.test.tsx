@@ -12,6 +12,45 @@ import { Tabs } from './Tabs';
 import { ThemeProvider } from '../../hooks/useTheme';
 import { conversations, me } from '../../demoData';
 import { MessageSearchDialog } from '../../features/chat/components/MessageSearchDialog';
+import { AuthProvider } from '../../auth/AuthContext';
+import type { AuthSession } from '../../api';
+
+vi.mock('socket.io-client', () => ({
+  io: () => ({
+    auth: {},
+    connected: false,
+    disconnect: vi.fn(),
+    emit: vi.fn(),
+    on: vi.fn(),
+  }),
+}));
+
+vi.mock('../../api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../api')>();
+  return {
+    ...actual,
+    getConversations: vi.fn().mockResolvedValue([]),
+    getMessages: vi.fn().mockResolvedValue([]),
+    refreshSession: vi.fn().mockRejectedValue(new Error('No active session')),
+  };
+});
+
+const initialSession: AuthSession = {
+  accessToken: 'test-access-token',
+  expiresIn: 900,
+  user: {
+    id: me.id,
+    email: 'alex@example.test',
+    username: 'alex.nogueira',
+    displayName: me.name,
+    avatarUrl: null,
+    jobTitle: 'Produto',
+    timeZone: 'America/Sao_Paulo',
+    locale: 'pt-BR',
+    status: 'ONLINE',
+    statusMessage: null,
+  },
+};
 
 beforeEach(() => window.localStorage.clear());
 afterEach(() => {
@@ -53,9 +92,11 @@ describe('componentes de interface', () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter>
-        <ThemeProvider>
-          <TopBar />
-        </ThemeProvider>
+        <AuthProvider initialSession={initialSession}>
+          <ThemeProvider>
+            <TopBar />
+          </ThemeProvider>
+        </AuthProvider>
       </MemoryRouter>,
     );
 
@@ -68,9 +109,11 @@ describe('componentes de interface', () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter>
-        <ThemeProvider>
-          <TopBar />
-        </ThemeProvider>
+        <AuthProvider initialSession={initialSession}>
+          <ThemeProvider>
+            <TopBar />
+          </ThemeProvider>
+        </AuthProvider>
       </MemoryRouter>,
     );
 
@@ -85,9 +128,11 @@ describe('componentes de interface', () => {
   it('abre a área da rota escolhida com navegação nomeada', () => {
     render(
       <MemoryRouter initialEntries={['/calendario']}>
-        <ThemeProvider>
-          <AppRoutes />
-        </ThemeProvider>
+        <AuthProvider initialSession={initialSession}>
+          <ThemeProvider>
+            <AppRoutes />
+          </ThemeProvider>
+        </AuthProvider>
       </MemoryRouter>,
     );
 
@@ -101,14 +146,32 @@ describe('componentes de interface', () => {
   it('abre um canal diretamente pela rota de equipe e canal', () => {
     render(
       <MemoryRouter initialEntries={['/equipes/geral/produto']}>
-        <ThemeProvider>
-          <AppRoutes />
-        </ThemeProvider>
+        <AuthProvider initialSession={initialSession}>
+          <ThemeProvider>
+            <AppRoutes />
+          </ThemeProvider>
+        </AuthProvider>
       </MemoryRouter>,
     );
 
     expect(screen.getByRole('heading', { name: 'produto' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Equipes' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('redireciona rotas privadas para entrar quando não há sessão', async () => {
+    render(
+      <AuthProvider>
+        <MemoryRouter initialEntries={['/calendario']}>
+          <ThemeProvider>
+            <AppRoutes />
+          </ThemeProvider>
+        </MemoryRouter>
+      </AuthProvider>,
+    );
+
+    expect(
+      await screen.findByRole('heading', { name: 'Boas-vindas de volta' }),
+    ).toBeInTheDocument();
   });
 
   it('navega pelos resultados da busca com o teclado e abre o canal selecionado', async () => {

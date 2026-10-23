@@ -2,16 +2,21 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import { io, type Socket } from 'socket.io-client';
 import { Check } from 'lucide-react';
-import { conversations as demoConversations, me, messages as demoMessages } from '../../demoData';
 import {
+  conversations as demoConversations,
+  me as demoMe,
+  messages as demoMessages,
+} from '../../demoData';
+import {
+  authUserToPerson,
   getConversations,
   getMessages,
   mapRemoteMessage,
   mapRemotePerson,
   sendMessage,
-  startDemoSession,
 } from '../../api';
 import type { Conversation, Message } from '../../types';
+import { useAuth } from '../../auth/AuthContext';
 import { ChatSidebar } from './components/ChatSidebar';
 import { ConversationDetails } from './components/ConversationDetails';
 import { ConversationHeader } from './components/ConversationHeader';
@@ -22,15 +27,23 @@ import { MessageSearchDialog } from './components/MessageSearchDialog';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 export function ChatPage() {
+  const { user, accessToken: token } = useAuth();
+  const me = useMemo(() => (user ? authUserToPerson(user) : demoMe), [user]);
   const navigate = useNavigate();
   const route = useParams<{ id?: string; teamId?: string; channelId?: string }>();
   const routeId = route.id ?? route.channelId;
   const [activeId, setActiveId] = useState('produto');
-  const [convoList, setConvoList] = useState<Conversation[]>(demoConversations);
-  const [messageMap, setMessageMap] = useState<Record<string, Message[]>>(demoMessages);
+  const [convoList, setConvoList] = useState<Conversation[]>(() =>
+    user?.id === demoMe.id ? demoConversations : [],
+  );
+  const [messageMap, setMessageMap] = useState<Record<string, Message[]>>(() =>
+    user?.id === demoMe.id ? demoMessages : {},
+  );
+  const [loadedConversationIds, setLoadedConversationIds] = useState<Set<string>>(
+    () => new Set(user?.id === demoMe.id ? Object.keys(demoMessages) : []),
+  );
   const [text, setText] = useState('');
   const [query, setQuery] = useState('');
-  const [token, setToken] = useState<string | null>(null);
   const [online, setOnline] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -46,16 +59,21 @@ export function ChatPage() {
   const [toast, setToast] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  const latestTokenRef = useRef(token);
+  const myIdRef = useRef(me.id);
   const resizeOrigin = useRef<{ x: number; width: number } | null>(null);
+  latestTokenRef.current = token;
+  myIdRef.current = me.id;
 
   useEffect(() => {
     if (routeId) setActiveId(routeId);
   }, [routeId]);
 
   const active =
-    convoList.find((conversation) => conversation.id === activeId) ?? demoConversations[0];
+    convoList.find((conversation) => conversation.id === activeId) ??
+    (user?.id === demoMe.id ? demoConversations[0] : undefined);
   const activeMessages = messageMap[activeId] ?? [];
-  const isChannel = active.kind === 'CHANNEL';
+  const isChannel = active?.kind === 'CHANNEL';
   const visibleChannels = useMemo(
     () =>
       convoList.filter(
@@ -76,39 +94,35 @@ export function ChatPage() {
   );
 
   useEffect(() => {
-    const bootstrap = async () => {
-      try {
-        const session = await startDemoSession();
-        setToken(session);
-        const remote = await getConversations(session);
-        if (remote.length) {
-          const mapped = remote.map(
-            (conversation) =>
-              ({
-                id: conversation.id,
-                kind: conversation.type,
-                name:
-                  conversation.type === 'CHANNEL'
-                    ? conversation.name
-                    : (conversation.members.find((member) => member.id !== me.id)?.name ??
-                      conversation.name),
-                description: conversation.description ?? undefined,
-                members: conversation.members.map(mapRemotePerson),
-                unread: conversation.unread,
-                lastMessage: conversation.preview,
-                lastAt: conversation.lastAt,
-              }) satisfies Conversation,
-          );
-          setConvoList(mapped);
-          const firstChannel = mapped.find((conversation) => conversation.kind === 'CHANNEL');
-          if (firstChannel) setActiveId(firstChannel.id);
-        }
-      } catch {
-        // O protótipo continua disponível com dados locais enquanto o backend não está configurado.
-      }
-    };
-    void bootstrap();
-  }, []);
+    if (!token || !user) return;
+    void getConversations(token)
+      .then((remote) => {
+        const mapped = remote.map(
+          (conversation) =>
+            ({
+              id: conversation.id,
+              kind: conversation.type,
+              name:
+                conversation.type === 'CHANNEL'
+                  ? conversation.name
+                  : (conversation.members.find((member) => member.id !== user.id)?.displayName ??
+                    conversation.name),
+              description: conversation.description ?? undefined,
+              members: conversation.members.map(mapRemotePerson),
+              unread: conversation.unread,
+              lastMessage: conversation.preview,
+              lastAt: conversation.lastAt,
+            }) satisfies Conversation,
+        );
+        setConvoList(mapped);
+        setMessageMap({});
+        setLoadedConversationIds(new Set());
+        const firstConversation =
+          mapped.find((conversation) => conversation.kind === 'CHANNEL') ?? mapped[0];
+        setActiveId(firstConversation?.id ?? '');
+      })
+      .catch(() => undefined);
+  }, [token, user]);
 
   useEffect(() => {
     const handleOpenSearch = () => setShowSearch(true);
@@ -121,13 +135,16 @@ export function ChatPage() {
   }, [showSearch]);
 
   useEffect(() => {
-    if (!token) return;
-    const socket = io(API_URL, { auth: { token }, transports: ['websocket', 'polling'] });
+    if (!user) return;
+    const socket = io(API_URL, {
+      auth: { token: latestTokenRef.current },
+      transports: ['websocket', 'polling'],
+    });
     socketRef.current = socket;
     socket.on('connect', () => setOnline(true));
     socket.on('disconnect', () => setOnline(false));
     socket.on('message:created', (message) => {
-      const normalized = mapRemoteMessage(message, me.id);
+      const normalized = mapRemoteMessage(message, myIdRef.current);
       const conversationId = message.conversationId ?? '';
       setMessageMap((current) => {
         const existing = current[conversationId] ?? [];
@@ -140,19 +157,31 @@ export function ChatPage() {
       socket.disconnect();
       socketRef.current = null;
     };
+  }, [user?.id]);
+
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket || !token) return;
+    socket.auth = { token };
+    if (socket.connected) {
+      socket.emit('auth:reauth', token, (result: { ok: boolean }) => {
+        if (!result.ok) socket.disconnect();
+      });
+    }
   }, [token]);
 
   useEffect(() => {
-    if (!token || !activeId || messageMap[activeId]?.length) return;
+    if (!token || !activeId || loadedConversationIds.has(activeId)) return;
     void getMessages(token, activeId)
       .then((remote) => {
         setMessageMap((current) => ({
           ...current,
           [activeId]: remote.map((message) => mapRemoteMessage(message, me.id)),
         }));
+        setLoadedConversationIds((current) => new Set(current).add(activeId));
       })
       .catch(() => undefined);
-  }, [activeId, messageMap, token]);
+  }, [activeId, loadedConversationIds, me.id, token]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'end' });
@@ -177,6 +206,21 @@ export function ChatPage() {
       // A largura escolhida continua aplicada enquanto a página estiver aberta.
     }
   }, [sidebarWidth]);
+
+  if (!active) {
+    return (
+      <section className="chat-empty-state" aria-labelledby="empty-chat-title">
+        <div className="chat-empty-icon" aria-hidden="true">
+          ✦
+        </div>
+        <h1 id="empty-chat-title">Sua conta está pronta</h1>
+        <p>
+          {user?.displayName}, você ainda não participa de nenhuma conversa. Quando entrar em um
+          espaço de trabalho, suas mensagens aparecerão aqui.
+        </p>
+      </section>
+    );
+  }
 
   const openConversation = (conversation: Conversation) => {
     setActiveId(conversation.id);

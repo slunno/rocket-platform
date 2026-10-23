@@ -1,7 +1,8 @@
 import { Activity, CalendarDays, FolderOpen, MessageCircle, Phone, Users } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Avatar } from '../components/ui/Avatar';
-import { me } from '../demoData';
+import { authUserToPerson } from '../api';
+import { useAuth } from '../auth/AuthContext';
 
 const navigation = [
   { label: 'Atividade', to: '/atividade', icon: Activity },
@@ -14,6 +15,8 @@ const navigation = [
 
 export function AppRail() {
   const location = useLocation();
+  const { user } = useAuth();
+  const person = user ? authUserToPerson(user) : null;
   return (
     <aside className="app-rail" aria-label="Aplicativos">
       <NavLink className="brand-mark" to="/chat/produto" aria-label="Rocket, página inicial">
@@ -43,15 +46,21 @@ export function AppRail() {
         })}
       </nav>
       <div className="rail-spacer" />
-      <button
-        className="rail-profile"
-        type="button"
-        aria-label={`Perfil de ${me.name}`}
-        title={me.name}
-      >
-        <Avatar person={me} size="small" />
-        <span className="online-indicator" aria-label="Disponível" />
-      </button>
+      {person && user && (
+        <button
+          className="rail-profile"
+          type="button"
+          aria-label={`Perfil de ${user.displayName}`}
+          title={user.displayName}
+          onClick={() => window.dispatchEvent(new Event('rocket:open-profile'))}
+        >
+          <Avatar person={person} size="small" />
+          <span
+            className={`online-indicator status-indicator-${person.status}`}
+            aria-label={user.status}
+          />
+        </button>
+      )}
     </aside>
   );
 }
