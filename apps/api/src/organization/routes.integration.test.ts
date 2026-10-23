@@ -31,6 +31,15 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
       to: () => ({ emit: () => undefined }),
     } as unknown as SocketServer;
     app.use('/', createApiRouter(socketServer));
+    app.use(
+      (error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) =>
+        res.status(500).json({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        }),
+    );
     server = createServer(app);
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -186,7 +195,7 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
         ],
       },
     );
-    expect(attachmentResponse.status).toBe(201);
+    expect(attachmentResponse.status, await attachmentResponse.clone().text()).toBe(201);
     const attachmentMessage = (await attachmentResponse.json()) as {
       id: string;
       attachments: { id: string; uploadedAt: string | null; storageKey?: string }[];

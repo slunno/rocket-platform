@@ -156,9 +156,10 @@ Fonte de acompanhamento dos blocos definidos no prompt mestre. Status: ✅ concl
 - **Validação local:** `npm run build`, `npm run lint`, `npm run typecheck`, `npm test` (48 passaram; 3 testes de integração ignorados sem PostgreSQL local), `npm run format:check`, `git diff --check` e `npm audit --audit-level=moderate` passaram.
 - **CI #28:** falhou durante a inicialização do MinIO: `quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z` retornou `unauthorized`; migrações PostgreSQL passaram. O serviço local de teste foi trocado para `bitnamilegacy/minio:2025.7.23`; a imagem é antiga e sem atualizações, portanto deve ficar restrita ao desenvolvimento/CI.
 - **CI #29:** puxou a imagem MinIO, mas o processo não conseguiu gravar em `/data` (`file access denied`). O serviço foi ajustado para usar o diretório de dados da imagem Bitnami, `/bitnami/minio/data`; CI precisa ser repetido.
+- **CI #30:** a imagem iniciou e o fluxo de upload alcançou o teste integrado; a criação da mensagem com anexo recebeu 500. O harness de integração agora devolve o detalhe do erro para identificar a chamada S3 que falha.
 - **Limite funcional:** anexos em respostas de tópico são rejeitados explicitamente; o compositor de respostas não oferece envio de arquivo.
 - **Pendências anteriores:** os Blocos 4 e 5 seguem com a validação visual multiusuário pendente por falta de um ambiente web/API com duas contas; essa conferência permanece registrada como desvio de ordem.
-- **Próxima etapa:** publicar o diretório de dados correto e repetir o CI com PostgreSQL/MinIO; se o job passar, fechar o Bloco 6 e iniciar o Bloco 7.
+- **Próxima etapa:** capturar o erro detalhado do upload no próximo CI e corrigir a chamada S3; então repetir até passar o restante da suíte com PostgreSQL/MinIO.
 
 ### 2026-10-22 — Bloco 0 concluído
 
