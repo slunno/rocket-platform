@@ -39,6 +39,7 @@ export type Conversation = {
   kind: ConversationKind;
   name: string;
   description?: string;
+  avatarUrl?: string | null;
   members: Person[];
   unread?: number;
   lastMessage?: string;
@@ -50,4 +51,26 @@ export type Conversation = {
   isFavorite?: boolean;
   isHidden?: boolean;
   memberCount?: number;
+  workspaceId?: string | null;
+  createdById?: string | null;
+  muted?: boolean;
+  pinned?: boolean;
 };
+
+export function conversationAvatarPerson(
+  conversation: Pick<Conversation, 'id' | 'name' | 'avatarUrl'>,
+): Person {
+  return {
+    id: conversation.id,
+    name: conversation.name,
+    initials: conversation.name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join('')
+      .toLocaleUpperCase('pt-BR'),
+    status: 'offline',
+    avatarUrl: conversation.avatarUrl,
+  };
+}

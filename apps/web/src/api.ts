@@ -1,4 +1,4 @@
-import type { Message, Person } from './types';
+import type { Conversation, Message, Person } from './types';
 
 const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -302,7 +302,12 @@ export type RemoteConversation = {
   type: 'DIRECT' | 'GROUP';
   name: string;
   description?: string | null;
+  avatarUrl?: string | null;
+  workspaceId: string | null;
+  createdById: string | null;
   memberCount: number;
+  muted: boolean;
+  pinned: boolean;
   preview?: string;
   lastAt?: string;
   unread?: number;
@@ -349,6 +354,60 @@ export type RemoteMessagePage = {
 
 export const getConversations = (token: string) =>
   request<RemoteConversation[]>('/api/conversations', token);
+export const createDirectConversation = (
+  token: string,
+  workspaceId: string,
+  targetUserId: string,
+) =>
+  request<RemoteConversation>(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/conversations/direct`,
+    token,
+    { method: 'POST', body: JSON.stringify({ targetUserId }) },
+  );
+export const createGroupConversation = (
+  token: string,
+  workspaceId: string,
+  input: { name: string; userIds: string[]; avatarUrl?: string | null },
+) =>
+  request<RemoteConversation>(
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/conversations`,
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+export const updateConversation = (
+  token: string,
+  conversationId: string,
+  input: { name?: string; description?: string | null; avatarUrl?: string | null },
+) =>
+  request<{ id: string; name: string; description: string | null; avatarUrl: string | null }>(
+    `/api/conversations/${encodeURIComponent(conversationId)}`,
+    token,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
+export const updateConversationPreference = (
+  token: string,
+  conversationId: string,
+  input: { muted?: boolean; pinned?: boolean },
+) =>
+  request<{ muted: boolean; pinned: boolean }>(
+    `/api/conversations/${encodeURIComponent(conversationId)}/preference`,
+    token,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
+export const addConversationMember = (token: string, conversationId: string, userId: string) =>
+  request<void>(`/api/conversations/${encodeURIComponent(conversationId)}/members`, token, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  });
+export const removeConversationMember = (token: string, conversationId: string, userId: string) =>
+  request<void>(
+    `/api/conversations/${encodeURIComponent(conversationId)}/members/${encodeURIComponent(userId)}`,
+    token,
+    { method: 'DELETE' },
+  );
 export const markConversationRead = (token: string, id: string) =>
   request<{ lastReadAt: string }>(`/api/conversations/${encodeURIComponent(id)}/read`, token, {
     method: 'POST',
@@ -467,6 +526,32 @@ export function mapRemotePerson(
       .toUpperCase(),
     status: statusMap[person.status],
     avatarUrl: person.avatarUrl,
+  };
+}
+
+export function mapRemoteConversation(
+  conversation: RemoteConversation,
+  myId: string,
+): Conversation {
+  const otherPerson = conversation.members.find((member) => member.id !== myId);
+  return {
+    id: conversation.id,
+    kind: conversation.type,
+    name:
+      conversation.type === 'DIRECT'
+        ? (otherPerson?.displayName ?? conversation.name)
+        : conversation.name,
+    description: conversation.description ?? undefined,
+    avatarUrl: conversation.avatarUrl ?? undefined,
+    members: conversation.members.map(mapRemotePerson),
+    unread: conversation.unread,
+    lastMessage: conversation.preview,
+    lastAt: conversation.lastAt,
+    workspaceId: conversation.workspaceId,
+    createdById: conversation.createdById,
+    muted: conversation.muted,
+    pinned: conversation.pinned,
+    memberCount: conversation.memberCount,
   };
 }
 

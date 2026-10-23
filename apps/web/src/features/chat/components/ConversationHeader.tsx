@@ -1,6 +1,15 @@
-import { ChevronLeft, Hash, Info, Menu, MoreHorizontal, Search, Video } from 'lucide-react';
+import {
+  ChevronLeft,
+  Hash,
+  Info,
+  Menu,
+  MoreHorizontal,
+  Search,
+  UsersRound,
+  Video,
+} from 'lucide-react';
 import { Avatar } from '../../../components/ui/Avatar';
-import type { Conversation, Person } from '../../../types';
+import { conversationAvatarPerson, type Conversation, type Person } from '../../../types';
 
 export function ConversationHeader({
   active,
@@ -36,13 +45,31 @@ export function ConversationHeader({
         <ChevronLeft size={20} />
       </button>
       <div className="conversation-heading-icon">
-        {isChannel ? <Hash size={18} /> : <Avatar person={getOtherPerson(active)} size="small" />}
+        {isChannel ? (
+          <Hash size={18} />
+        ) : active.kind === 'GROUP' ? (
+          active.avatarUrl ? (
+            <Avatar person={conversationAvatarPerson(active)} size="small" />
+          ) : (
+            <span className="conversation-heading-group-icon">
+              <UsersRound size={17} aria-hidden="true" />
+            </span>
+          )
+        ) : (
+          <Avatar person={getOtherPerson(active)} size="small" />
+        )}
       </div>
       <div className="conversation-heading-copy">
         <h1>{active.name}</h1>
-        <p>{isChannel ? active.description : (getOtherPerson(active).role ?? 'Conversa direta')}</p>
+        <p>
+          {isChannel
+            ? active.description
+            : active.kind === 'GROUP'
+              ? `${active.memberCount ?? active.members.length} pessoas no grupo`
+              : (getOtherPerson(active).role ?? 'Conversa direta')}
+        </p>
       </div>
-      {isChannel && (
+      {active.kind !== 'DIRECT' && (
         <div
           className="header-members"
           title={`${active.memberCount ?? active.members.length} pessoas no canal`}

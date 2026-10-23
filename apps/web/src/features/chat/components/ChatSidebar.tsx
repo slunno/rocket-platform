@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   AtSign,
   Bell,
+  BellOff,
   ChevronDown,
   ChevronRight,
   Command,
@@ -10,6 +11,7 @@ import {
   MessageCircle,
   MoreHorizontal,
   Plus,
+  Pin,
   Search,
   Sparkles,
   Star,
@@ -17,7 +19,7 @@ import {
 } from 'lucide-react';
 import { Avatar } from '../../../components/ui/Avatar';
 import type { RemoteTeam, RemoteWorkspace, WorkspaceRole } from '../../../api';
-import type { Conversation, Person } from '../../../types';
+import { conversationAvatarPerson, type Conversation, type Person } from '../../../types';
 
 type ChatSidebarProps = {
   activeId: string;
@@ -42,7 +44,10 @@ type ChatSidebarProps = {
   onJoinTeam: (teamId: string, channelId: string) => void;
   onToggleFavorite: (channelId: string, value: boolean) => void;
   onToggleHidden: (channelId: string, value: boolean) => void;
+  onNewChat: () => void;
+  canStartConversation: boolean;
   onToast: (message: string) => void;
+  onToggleConversationPin: (conversation: Conversation) => void;
 };
 
 export function ChatSidebar({
@@ -68,7 +73,10 @@ export function ChatSidebar({
   onJoinTeam,
   onToggleFavorite,
   onToggleHidden,
+  onNewChat,
+  canStartConversation,
   onToast,
+  onToggleConversationPin,
 }: ChatSidebarProps) {
   const [expandedTeams, setExpandedTeams] = useState<Record<string, boolean>>({});
   const [showHidden, setShowHidden] = useState(false);
@@ -362,57 +370,83 @@ export function ChatSidebar({
         </div>
       </section>
 
-      <section
-        className="conversation-section dm-section"
-        aria-labelledby="direct-messages-heading"
-      >
+      <section className="conversation-section dm-section" aria-labelledby="chats-heading">
         <div className="section-heading">
           <div>
             <ChevronDown size={14} aria-hidden="true" />
-            <span id="direct-messages-heading">MENSAGENS DIRETAS</span>
+            <span id="chats-heading">CHATS</span>
           </div>
           <button
             className="section-add"
-            aria-label="Nova mensagem direta"
-            onClick={() => onToast('A criação de conversas diretas será adicionada no Bloco 5.')}
+            aria-label="Novo chat"
+            disabled={!canStartConversation}
+            title={canStartConversation ? 'Novo chat' : 'Convidados não podem iniciar chats'}
+            onClick={onNewChat}
           >
             <Plus size={16} />
           </button>
         </div>
         <div className="conversation-list">
           {visibleDms.map((conversation) => {
-            const person = getOtherPerson(conversation);
             return (
-              <button
-                key={conversation.id}
-                className={`conversation-row dm-row ${activeId === conversation.id ? 'conversation-row-active' : ''}`}
-                onClick={() => onOpenConversation(conversation)}
-                aria-current={activeId === conversation.id ? 'page' : undefined}
-              >
-                <span className="avatar-wrap">
-                  <Avatar person={person} size="small" />
-                  <span className={`status-dot status-${person.status}`} aria-hidden="true" />
-                  <span className="sr-only">
-                    {person.status === 'online'
-                      ? 'Disponível'
-                      : person.status === 'away'
-                        ? 'Ausente'
-                        : 'Indisponível'}
+              <div className="conversation-entry" key={conversation.id}>
+                <button
+                  className={`conversation-row dm-row ${activeId === conversation.id ? 'conversation-row-active' : ''}`}
+                  onClick={() => onOpenConversation(conversation)}
+                  aria-current={activeId === conversation.id ? 'page' : undefined}
+                >
+                  {conversation.kind === 'GROUP' && !conversation.avatarUrl ? (
+                    <span className="conversation-group-icon" aria-hidden="true">
+                      <UsersRound size={16} />
+                    </span>
+                  ) : conversation.kind === 'GROUP' ? (
+                    <Avatar person={conversationAvatarPerson(conversation)} size="small" />
+                  ) : (
+                    <span className="avatar-wrap">
+                      <Avatar person={getOtherPerson(conversation)} size="small" />
+                      <span
+                        className={`status-dot status-${getOtherPerson(conversation).status}`}
+                        aria-hidden="true"
+                      />
+                      <span className="sr-only">
+                        {getOtherPerson(conversation).status === 'online'
+                          ? 'Disponível'
+                          : getOtherPerson(conversation).status === 'away'
+                            ? 'Ausente'
+                            : 'Indisponível'}
+                      </span>
+                    </span>
+                  )}
+                  <span className="conversation-row-copy">
+                    <span className="conversation-name">{conversation.name}</span>
+                    {conversation.lastMessage && (
+                      <span className="conversation-preview">{conversation.lastMessage}</span>
+                    )}
                   </span>
-                </span>
-                <span className="conversation-name">{conversation.name}</span>
-                {conversation.unread ? (
-                  <span
-                    className="unread-count"
-                    aria-label={`${conversation.unread} mensagens não lidas`}
-                  >
-                    {conversation.unread}
-                  </span>
-                ) : null}
-              </button>
+                  {conversation.unread ? (
+                    <span
+                      className="unread-count"
+                      aria-label={`${conversation.unread} mensagens não lidas`}
+                    >
+                      {conversation.unread}
+                    </span>
+                  ) : null}
+                  {conversation.muted && <BellOff size={13} aria-label="Silenciada" />}
+                  {conversation.pinned && <Pin size={13} aria-label="Fixada" />}
+                </button>
+                <button
+                  type="button"
+                  className={`conversation-pin-button ${conversation.pinned ? 'is-pinned' : ''}`}
+                  aria-label={`${conversation.pinned ? 'Desafixar' : 'Fixar'} ${conversation.name}`}
+                  title={`${conversation.pinned ? 'Desafixar' : 'Fixar'} conversa`}
+                  onClick={() => onToggleConversationPin(conversation)}
+                >
+                  <Pin size={14} aria-hidden="true" />
+                </button>
+              </div>
             );
           })}
-          {!visibleDms.length && <p className="empty-list">Nenhuma conversa direta.</p>}
+          {!visibleDms.length && <p className="empty-list">Nenhum chat por aqui.</p>}
         </div>
       </section>
 

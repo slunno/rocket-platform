@@ -17,7 +17,10 @@ import {
   addTeamMember,
   archiveChannel,
   archiveTeam,
+  addConversationMember,
   authUserToPerson,
+  createDirectConversation,
+  createGroupConversation,
   createChannel,
   createTeam,
   createWorkspace,
@@ -33,20 +36,23 @@ import {
   getWorkspace,
   getWorkspaceMembers,
   getWorkspaces,
+  mapRemoteConversation,
   joinTeam,
   markChannelRead,
   markConversationRead,
   mapRemoteMessage,
-  mapRemotePerson,
   removeChannelMember,
   removeMessageReaction,
   removeWorkspaceMember,
+  removeConversationMember,
   removeTeamMember,
   sendChannelMessage,
   sendMessage,
   sendMessageReply,
   updateChannel,
   updateChannelPreference,
+  updateConversation,
+  updateConversationPreference,
   updateTeam,
   updateWorkspaceMemberRole,
   type CreatedInvite,
@@ -68,9 +74,18 @@ import { MessageFeed } from './components/MessageFeed';
 import { MessageSearchDialog } from './components/MessageSearchDialog';
 import { ThreadPanel } from './components/ThreadPanel';
 import { OrganizationDialog, type OrganizationDialogState } from './components/OrganizationDialog';
+import { NewConversationDialog } from './components/NewConversationDialog';
 import type { MessageMentionOption } from './components/MessageContent';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+
+function sortConversationList(conversations: Conversation[]) {
+  return [...conversations].sort((left, right) => {
+    const pinOrder = Number(Boolean(right.pinned)) - Number(Boolean(left.pinned));
+    if (pinOrder) return pinOrder;
+    return (Date.parse(right.lastAt ?? '') || 0) - (Date.parse(left.lastAt ?? '') || 0);
+  });
+}
 
 export function ChatPage() {
   const { user, accessToken: token } = useAuth();
@@ -120,6 +135,7 @@ export function ChatPage() {
   }>({ nextCursor: null, loading: false, loadingOlder: false });
   const [showDetails, setShowDetails] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [showNewConversation, setShowNewConversation] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     try {
@@ -158,6 +174,14 @@ export function ChatPage() {
     setToast(message);
     window.setTimeout(() => setToast(''), 3000);
   }, []);
+
+  const reloadConversations = useCallback(async () => {
+    if (!token || !user) return [];
+    const remote = await getConversations(token);
+    const mapped = remote.map((conversation) => mapRemoteConversation(conversation, user.id));
+    setDirectConversations(mapped);
+    return mapped;
+  }, [token, user]);
 
   useEffect(() => {
     if (!token) return;
@@ -208,28 +232,8 @@ export function ChatPage() {
   }, [showToast, token, workspaceId]);
 
   useEffect(() => {
-    if (!token || !user) return;
-    void getConversations(token)
-      .then((remote) => {
-        setDirectConversations(
-          remote.map((conversation) => ({
-            id: conversation.id,
-            kind: conversation.type,
-            name:
-              conversation.type === 'DIRECT'
-                ? (conversation.members.find((member) => member.id !== user.id)?.displayName ??
-                  conversation.name)
-                : conversation.name,
-            description: conversation.description ?? undefined,
-            members: conversation.members.map(mapRemotePerson),
-            unread: conversation.unread,
-            lastMessage: conversation.preview,
-            lastAt: conversation.lastAt,
-          })),
-        );
-      })
-      .catch(() => undefined);
-  }, [token, user]);
+    void reloadConversations().catch(() => undefined);
+  }, [reloadConversations]);
 
   const teams = workspace?.teams ?? [];
   const channelConversations = useMemo(
@@ -330,20 +334,7 @@ export function ChatPage() {
       getConversations(currentToken)
         .then((remote) =>
           setDirectConversations(
-            remote.map((conversation) => ({
-              id: conversation.id,
-              kind: conversation.type,
-              name:
-                conversation.type === 'DIRECT'
-                  ? (conversation.members.find((member) => member.id !== myIdRef.current)
-                      ?.displayName ?? conversation.name)
-                  : conversation.name,
-              description: conversation.description ?? undefined,
-              members: conversation.members.map(mapRemotePerson),
-              unread: conversation.unread,
-              lastMessage: conversation.preview,
-              lastAt: conversation.lastAt,
-            })),
+            remote.map((item) => mapRemoteConversation(item, myIdRef.current)),
           ),
         )
         .catch(() => undefined),
@@ -455,6 +446,27 @@ export function ChatPage() {
       for (const timeout of remoteTypingTimeoutsRef.current.values()) window.clearTimeout(timeout);
       remoteTypingTimeoutsRef.current.clear();
     });
+    socket.on('conversation:updated', (event: { conversationId: string }) => {
+      const currentToken = latestTokenRef.current;
+      if (!currentToken) return;
+      void getConversations(currentToken)
+        .then((remote) => {
+          const mapped = remote.map((item) => mapRemoteConversation(item, myIdRef.current));
+          setDirectConversations(mapped);
+          const selected = conversationsRef.current.find(({ id }) => id === event.conversationId);
+          if (
+            selected &&
+            selected.kind !== 'CHANNEL' &&
+            activeIdRef.current === event.conversationId &&
+            !mapped.some(({ id }) => id === event.conversationId)
+          ) {
+            setActiveId('');
+            setShowDetails(false);
+            navigate('/chat');
+          }
+        })
+        .catch(() => undefined);
+    });
     socket.on(
       'typing',
       (event: {
@@ -505,6 +517,21 @@ export function ChatPage() {
       }
       const parentId = message.conversationId ?? message.channelId ?? '';
       if (!parentId) return;
+      if (message.conversationId) {
+        setDirectConversations((current) =>
+          sortConversationList(
+            current.map((conversation) =>
+              conversation.id === parentId
+                ? {
+                    ...conversation,
+                    lastMessage: normalized.text,
+                    lastAt: normalized.createdAt ?? new Date().toISOString(),
+                  }
+                : conversation,
+            ),
+          ),
+        );
+      }
       if (message.author.id !== myIdRef.current) {
         const isActiveAndVisible =
           activeIdRef.current === parentId && document.visibilityState === 'visible';
@@ -752,6 +779,117 @@ export function ChatPage() {
       navigate(`/chat/${encodeURIComponent(conversation.id)}`);
     }
     setSidebarOpen(false);
+  };
+
+  const startDirectConversation = async (targetUserId: string) => {
+    if (!token || !workspaceId) throw new Error('Selecione um espaço de trabalho.');
+    const remote = await createDirectConversation(token, workspaceId, targetUserId);
+    const conversation = mapRemoteConversation(remote, me.id);
+    setDirectConversations((current) => {
+      const existing = current.find((item) => item.id === conversation.id);
+      return sortConversationList(
+        existing
+          ? current.map((item) =>
+              item.id === conversation.id ? { ...existing, ...conversation } : item,
+            )
+          : [conversation, ...current],
+      );
+    });
+    setShowNewConversation(false);
+    openConversation(conversation);
+  };
+
+  const createGroup = async (name: string, userIds: string[], avatarUrl: string | null) => {
+    if (!token || !workspaceId) throw new Error('Selecione um espaço de trabalho.');
+    const remote = await createGroupConversation(token, workspaceId, { name, userIds, avatarUrl });
+    const conversation = mapRemoteConversation(remote, me.id);
+    setDirectConversations((current) =>
+      sortConversationList([
+        conversation,
+        ...current.filter((item) => item.id !== conversation.id),
+      ]),
+    );
+    setShowNewConversation(false);
+    openConversation(conversation);
+    showToast('Grupo criado.');
+  };
+
+  const toggleConversationPreference = async (
+    conversation: Conversation,
+    preference: 'muted' | 'pinned',
+  ) => {
+    if (!token) return;
+    const value = !conversation[preference];
+    try {
+      const updated = await updateConversationPreference(token, conversation.id, {
+        [preference]: value,
+      });
+      setDirectConversations((current) =>
+        sortConversationList(
+          current.map((item) => (item.id === conversation.id ? { ...item, ...updated } : item)),
+        ),
+      );
+      showToast(
+        value
+          ? preference === 'muted'
+            ? 'Conversa silenciada.'
+            : 'Conversa fixada.'
+          : preference === 'muted'
+            ? 'Silêncio removido.'
+            : 'Conversa desafixada.',
+      );
+    } catch {
+      showToast('Não foi possível atualizar as preferências da conversa.');
+    }
+  };
+
+  const updateGroupDetails = async (
+    conversationId: string,
+    name: string,
+    description: string,
+    avatarUrl: string | null,
+  ) => {
+    if (!token) throw new Error('Sua sessão expirou. Entre novamente.');
+    const updated = await updateConversation(token, conversationId, {
+      name,
+      description: description.trim() || null,
+      avatarUrl,
+    });
+    setDirectConversations((current) =>
+      current.map((item) =>
+        item.id === conversationId
+          ? {
+              ...item,
+              name: updated.name,
+              description: updated.description ?? undefined,
+              avatarUrl: updated.avatarUrl ?? undefined,
+            }
+          : item,
+      ),
+    );
+    showToast('Dados do grupo atualizados.');
+  };
+
+  const addGroupMember = async (conversationId: string, userId: string) => {
+    if (!token) throw new Error('Sua sessão expirou. Entre novamente.');
+    await addConversationMember(token, conversationId, userId);
+    await reloadConversations();
+    showToast('Pessoa adicionada ao grupo.');
+  };
+
+  const removeGroupMember = async (conversationId: string, userId: string) => {
+    if (!token) throw new Error('Sua sessão expirou. Entre novamente.');
+    await removeConversationMember(token, conversationId, userId);
+    if (userId === me.id) {
+      setDirectConversations((current) => current.filter((item) => item.id !== conversationId));
+      setActiveId('');
+      navigate('/chat');
+      setShowDetails(false);
+      showToast('Você saiu do grupo.');
+      return;
+    }
+    await reloadConversations();
+    showToast('Pessoa removida do grupo.');
   };
 
   const refreshOrganization = async () => {
@@ -1203,6 +1341,11 @@ export function ChatPage() {
             .then(refreshOrganization)
             .catch(() => showToast('Não foi possível atualizar o canal.'));
         }}
+        onNewChat={() => setShowNewConversation(true)}
+        canStartConversation={Boolean(workspaceId) && workspaceRole !== 'GUEST'}
+        onToggleConversationPin={(conversation) =>
+          void toggleConversationPreference(conversation, 'pinned')
+        }
         onToast={showToast}
       />
       <button
@@ -1322,8 +1465,21 @@ export function ChatPage() {
                 isChannel={isChannel}
                 open={showDetails}
                 onClose={() => setShowDetails(false)}
-                onToast={showToast}
                 meId={me.id}
+                availableMembers={workspaceMembers.filter(
+                  (member) =>
+                    member.id !== me.id &&
+                    member.role !== 'GUEST' &&
+                    !active.members.some(
+                      (conversationMember) => conversationMember.id === member.id,
+                    ),
+                )}
+                onTogglePreference={(preference) =>
+                  toggleConversationPreference(active, preference)
+                }
+                onUpdateGroup={updateGroupDetails}
+                onAddMember={addGroupMember}
+                onRemoveMember={removeGroupMember}
               />
             )}
           </div>
@@ -1352,6 +1508,14 @@ export function ChatPage() {
           setShowSearch(false);
           setQuery('');
         }}
+      />
+      <NewConversationDialog
+        open={showNewConversation}
+        people={workspaceMembers}
+        selfId={me.id}
+        onClose={() => setShowNewConversation(false)}
+        onStartDirect={startDirectConversation}
+        onCreateGroup={createGroup}
       />
       <OrganizationDialog
         dialog={organizationDialog}
