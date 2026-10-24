@@ -58,6 +58,15 @@ export const envSchema = z
         message: 'Use um endereço mailto: ou uma URL HTTPS para VAPID_SUBJECT.',
       })
       .optional(),
+    LIVEKIT_URL: z
+      .string()
+      .url()
+      .refine((value) => ['ws:', 'wss:'].includes(new URL(value).protocol), {
+        message: 'Use um endereço ws:// ou wss:// do servidor LiveKit.',
+      })
+      .optional(),
+    LIVEKIT_API_KEY: z.string().trim().min(1).max(256).optional(),
+    LIVEKIT_API_SECRET: z.string().min(32).max(1024).optional(),
   })
   .superRefine((env, context) => {
     const vapidSettings = [env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY, env.VAPID_SUBJECT];
@@ -67,6 +76,24 @@ export const envSchema = z
         path: ['VAPID_PUBLIC_KEY'],
         message: 'Configure VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY e VAPID_SUBJECT em conjunto.',
       });
+    }
+    const liveKitSettings = [env.LIVEKIT_URL, env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET];
+    if (liveKitSettings.some(Boolean) && !liveKitSettings.every(Boolean)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['LIVEKIT_URL'],
+        message: 'Configure LIVEKIT_URL, LIVEKIT_API_KEY e LIVEKIT_API_SECRET em conjunto.',
+      });
+    }
+    if (env.NODE_ENV === 'production' && env.LIVEKIT_URL) {
+      const protocol = new URL(env.LIVEKIT_URL).protocol;
+      if (protocol !== 'wss:') {
+        context.addIssue({
+          code: 'custom',
+          path: ['LIVEKIT_URL'],
+          message: 'Use wss:// para o servidor LiveKit em produção.',
+        });
+      }
     }
     if (
       env.NODE_ENV === 'production' &&

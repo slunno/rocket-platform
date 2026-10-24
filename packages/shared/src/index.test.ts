@@ -12,6 +12,11 @@ import {
   fileListQuerySchema,
   globalSearchQuerySchema,
   profileUpdateInputSchema,
+  calendarAttendeeResponseInputSchema,
+  calendarEventCreateInputSchema,
+  calendarEventUpdateInputSchema,
+  calendarEventsQuerySchema,
+  meetingNowInputSchema,
   registerInputSchema,
   teamCreateInputSchema,
   userSummarySchema,
@@ -89,6 +94,72 @@ describe('contratos compartilhados', () => {
     );
     expect(
       globalSearchQuerySchema.safeParse({ q: 'agenda', workspaceId: 'space-1', limit: 11 }).success,
+    ).toBe(false);
+  });
+
+  it('valida eventos de calendário, recorrência, fuso e participantes', () => {
+    const startAt = new Date('2026-11-02T13:00:00.000Z');
+    const event = calendarEventCreateInputSchema.parse({
+      title: 'Revisão da coleção',
+      startAt,
+      endAt: new Date('2026-11-02T14:00:00.000Z'),
+      recurrence: 'WEEKLY',
+      recurrenceUntil: new Date('2026-11-30T23:59:00.000Z'),
+      timeZone: 'America/Sao_Paulo',
+      attendeeIds: ['member-1', 'member-2'],
+    });
+    expect(event.reminderMinutes).toBe(15);
+    expect(event.recurrence).toBe('WEEKLY');
+    expect(
+      calendarEventCreateInputSchema.safeParse({
+        title: 'Evento inválido',
+        startAt,
+        endAt: startAt,
+        recurrence: 'MONTHLY',
+        attendeeIds: [],
+      }).success,
+    ).toBe(false);
+    expect(
+      calendarEventCreateInputSchema.safeParse({
+        title: 'Evento sem fuso',
+        startAt,
+        endAt: new Date('2026-11-02T14:00:00.000Z'),
+        timeZone: 'Mars/Olympus',
+        attendeeIds: [],
+      }).success,
+    ).toBe(false);
+    expect(
+      calendarEventCreateInputSchema.safeParse({
+        title: 'Participante repetido',
+        startAt,
+        endAt: new Date('2026-11-02T14:00:00.000Z'),
+        attendeeIds: ['member-1', 'member-1'],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('valida janela do calendário, resposta ao convite e alvo de reunião', () => {
+    expect(
+      calendarEventsQuerySchema.safeParse({
+        from: '2026-11-01T00:00:00.000Z',
+        to: '2026-11-02T00:00:00.000Z',
+      }).success,
+    ).toBe(true);
+    expect(
+      calendarEventsQuerySchema.safeParse({
+        from: '2026-01-01T00:00:00.000Z',
+        to: '2026-05-01T00:00:00.000Z',
+      }).success,
+    ).toBe(false);
+    expect(calendarAttendeeResponseInputSchema.parse({ status: 'ACCEPTED' })).toEqual({
+      status: 'ACCEPTED',
+    });
+    expect(calendarEventUpdateInputSchema.safeParse({}).success).toBe(false);
+    expect(meetingNowInputSchema.safeParse({ conversationId: 'dm-1' }).success).toBe(true);
+    expect(meetingNowInputSchema.safeParse({ channelId: 'channel-1' }).success).toBe(true);
+    expect(meetingNowInputSchema.safeParse({}).success).toBe(false);
+    expect(
+      meetingNowInputSchema.safeParse({ conversationId: 'dm-1', channelId: 'channel-1' }).success,
     ).toBe(false);
   });
 

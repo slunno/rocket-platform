@@ -25,6 +25,8 @@ import { storageProvider } from './storage/provider.js';
 import { createActivityRouter } from './notifications/routes.js';
 import { notifyMessageCreated, notifyReactionAdded } from './notifications/service.js';
 import { createSearchRouter } from './search/routes.js';
+import { createCalendarRouter } from './calendar/routes.js';
+import { createMeetingsRouter } from './meetings/routes.js';
 
 const getRouteParam = (value: string | string[] | undefined) =>
   Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
@@ -425,6 +427,8 @@ export function createApiRouter(io: Server) {
   router.use('/auth', authRouter);
   router.use('/activity', createActivityRouter());
   router.use('/search', createSearchRouter());
+  router.use('/calendar', createCalendarRouter());
+  router.use('/meetings', createMeetingsRouter());
   router.use('/', createOrganizationRouter(io));
 
   router.get('/conversations', requireAuth, async (req, res, next) => {

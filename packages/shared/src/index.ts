@@ -265,6 +265,112 @@ export const globalSearchQuerySchema = z
     }
   });
 
+const calendarTimeZoneSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .refine((value) => {
+    try {
+      new Intl.DateTimeFormat('pt-BR', { timeZone: value });
+      return true;
+    } catch {
+      return false;
+    }
+  }, 'Informe um fuso horário válido.');
+
+export const calendarEventCreateInputSchema = z
+  .object({
+    title: z.string().trim().min(2).max(120),
+    description: z.string().trim().max(2000).nullable().optional(),
+    startAt: z.coerce.date(),
+    endAt: z.coerce.date(),
+    timeZone: calendarTimeZoneSchema.default('America/Sao_Paulo'),
+    recurrence: z.enum(['NONE', 'DAILY', 'WEEKLY', 'MONTHLY']).default('NONE'),
+    recurrenceUntil: z.coerce.date().optional(),
+    reminderMinutes: z.number().int().min(0).max(10080).default(15),
+    attendeeIds: z.array(z.string().trim().min(1).max(128)).max(100).default([]),
+  })
+  .superRefine((event, context) => {
+    if (event.endAt <= event.startAt) {
+      context.addIssue({
+        code: 'custom',
+        path: ['endAt'],
+        message: 'A reunião precisa terminar depois de começar.',
+      });
+    }
+    if (event.recurrence !== 'NONE') {
+      if (!event.recurrenceUntil || event.recurrenceUntil < event.startAt) {
+        context.addIssue({
+          code: 'custom',
+          path: ['recurrenceUntil'],
+          message: 'Informe até quando o evento recorrente deve se repetir.',
+        });
+      } else if (event.recurrenceUntil.getTime() - event.startAt.getTime() > 366 * 86_400_000) {
+        context.addIssue({
+          code: 'custom',
+          path: ['recurrenceUntil'],
+          message: 'A recorrência pode ser configurada por até um ano.',
+        });
+      }
+    } else if (event.recurrenceUntil) {
+      context.addIssue({
+        code: 'custom',
+        path: ['recurrenceUntil'],
+        message: 'Data final de recorrência não se aplica a evento único.',
+      });
+    }
+    if (new Set(event.attendeeIds).size !== event.attendeeIds.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['attendeeIds'],
+        message: 'A lista de participantes contém duplicatas.',
+      });
+    }
+  });
+
+export const calendarEventsQuerySchema = z
+  .object({
+    from: z.coerce.date(),
+    to: z.coerce.date(),
+  })
+  .superRefine(({ from, to }, context) => {
+    if (to <= from || to.getTime() - from.getTime() > 93 * 86_400_000) {
+      context.addIssue({
+        code: 'custom',
+        path: ['to'],
+        message: 'A janela do calendário deve ter entre um momento e 93 dias.',
+      });
+    }
+  });
+
+export const calendarAttendeeResponseInputSchema = z.object({
+  status: z.enum(['ACCEPTED', 'DECLINED']),
+});
+
+export const meetingNowInputSchema = z
+  .object({
+    conversationId: z.string().trim().min(1).max(128).optional(),
+    channelId: z.string().trim().min(1).max(128).optional(),
+  })
+  .refine((input) => Boolean(input.conversationId) !== Boolean(input.channelId), {
+    message: 'Selecione uma conversa direta ou um canal para a reunião.',
+  });
+
+export const calendarEventUpdateInputSchema = z
+  .object({
+    title: z.string().trim().min(2).max(120).optional(),
+    description: z.string().trim().max(2000).nullable().optional(),
+    startAt: z.coerce.date().optional(),
+    endAt: z.coerce.date().optional(),
+    timeZone: calendarTimeZoneSchema.optional(),
+    reminderMinutes: z.number().int().min(0).max(10080).optional(),
+    recurrence: z.enum(['NONE', 'DAILY', 'WEEKLY', 'MONTHLY']).optional(),
+    recurrenceUntil: z.coerce.date().nullable().optional(),
+    attendeeIds: z.array(z.string().trim().min(1).max(128)).max(100).optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, 'Informe ao menos um campo para atualizar.');
+
 export const attachmentDownloadQuerySchema = z.object({
   disposition: z.enum(['inline', 'attachment']).default('attachment'),
 });
@@ -281,6 +387,11 @@ export type LoginInput = z.infer<typeof loginInputSchema>;
 export type PaginationQuery = z.infer<typeof paginationQuerySchema>;
 export type FileListQuery = z.infer<typeof fileListQuerySchema>;
 export type GlobalSearchQuery = z.infer<typeof globalSearchQuerySchema>;
+export type CalendarEventCreateInput = z.infer<typeof calendarEventCreateInputSchema>;
+export type CalendarEventsQuery = z.infer<typeof calendarEventsQuerySchema>;
+export type CalendarAttendeeResponseInput = z.infer<typeof calendarAttendeeResponseInputSchema>;
+export type MeetingNowInput = z.infer<typeof meetingNowInputSchema>;
+export type CalendarEventUpdateInput = z.infer<typeof calendarEventUpdateInputSchema>;
 export type AttachmentDownloadQuery = z.infer<typeof attachmentDownloadQuerySchema>;
 export type ProfileUpdateInput = z.infer<typeof profileUpdateInputSchema>;
 export type WorkspaceCreateInput = z.infer<typeof workspaceCreateInputSchema>;

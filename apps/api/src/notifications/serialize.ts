@@ -1,6 +1,6 @@
 type ActivityNotificationRecord = {
   id: string;
-  kind: 'MENTION' | 'REPLY' | 'REACTION' | 'INVITE';
+  kind: 'MENTION' | 'REPLY' | 'REACTION' | 'INVITE' | 'EVENT_REMINDER';
   createdAt: Date;
   readAt: Date | null;
   workspaceId: string | null;

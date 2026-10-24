@@ -17,6 +17,9 @@ jobs:
       STORAGE_ENDPOINT: http://localhost:9000
       STORAGE_ACCESS_KEY: rocket-minio
       STORAGE_SECRET_KEY: rocket-minio-secret
+      LIVEKIT_URL: ws://localhost:7880
+      LIVEKIT_API_KEY: rocket-dev
+      LIVEKIT_API_SECRET: rocket-local-livekit-secret-only-for-development-2026
     services:
       postgres:
         image: postgres:17-alpine
@@ -67,6 +70,23 @@ jobs:
           done
           docker logs rocket-minio
           exit 1
+      - name: Start LiveKit
+        run: |
+          docker run -d --name rocket-livekit \
+            -p 7880:7880/tcp \
+            -p 7881:7881/tcp \
+            -p 7882:7882/udp \
+            -v "$GITHUB_WORKSPACE/livekit.yaml:/etc/livekit.yaml:ro" \
+            livekit/livekit-server:v1.13.10 \
+            --config /etc/livekit.yaml
+          for attempt in $(seq 1 30); do
+            if curl --silent --output /dev/null http://localhost:7880/; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs rocket-livekit
+          exit 1
       - run: npm run test
       - run: npm run build
       - run: npm run db:seed
@@ -86,3 +106,5 @@ jobs:
           grep -qi 'Rocket' /tmp/rocket-web.html
       - if: always()
         run: docker rm -f rocket-minio >/dev/null 2>&1 || true
+      - if: always()
+        run: docker rm -f rocket-livekit >/dev/null 2>&1 || true

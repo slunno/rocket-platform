@@ -33,6 +33,43 @@ describe('configuração da API', () => {
     ).toBe(false);
   });
 
+  it('exige as três credenciais LiveKit em conjunto e TLS em produção', () => {
+    const liveKit = {
+      LIVEKIT_URL: 'wss://meet.example.com',
+      LIVEKIT_API_KEY: 'rocket-key',
+      LIVEKIT_API_SECRET: 'a-secret-that-is-long-enough-for-livekit-token-signing',
+    };
+    expect(envSchema.safeParse({ ...validEnvironment, ...liveKit }).success).toBe(true);
+    expect(
+      envSchema.safeParse({ ...validEnvironment, LIVEKIT_API_KEY: liveKit.LIVEKIT_API_KEY })
+        .success,
+    ).toBe(false);
+    const production = {
+      ...validEnvironment,
+      NODE_ENV: 'production',
+      JWT_SECRET: 'production-secret-with-at-least-32-characters',
+      DEMO_AUTH_ENABLED: 'false',
+      MAIL_PROVIDER: 'smtp',
+      MAIL_FROM: 'Rocket <noreply@example.com>',
+      SMTP_HOST: 'smtp.example.com',
+      SMTP_USER: 'rocket',
+      SMTP_PASSWORD: 'smtp-secret',
+      REDIS_URL: 'rediss://cache.example.com:6380',
+      STORAGE_ENDPOINT: 'https://s3.example.com',
+      STORAGE_ACCESS_KEY: 'production-access',
+      STORAGE_SECRET_KEY: 'production-storage-secret',
+    };
+    expect(envSchema.safeParse({ ...production, ...liveKit }).success).toBe(true);
+    const insecure = envSchema.safeParse({
+      ...production,
+      ...liveKit,
+      LIVEKIT_URL: 'ws://meet.example.com',
+    });
+    expect(insecure.success).toBe(false);
+    if (!insecure.success)
+      expect(insecure.error.issues.some((issue) => issue.path[0] === 'LIVEKIT_URL')).toBe(true);
+  });
+
   it('rejeita URLs de banco de dados inválidas', () => {
     expect(envSchema.safeParse({ DATABASE_URL: 'http://localhost/db' }).success).toBe(false);
   });
