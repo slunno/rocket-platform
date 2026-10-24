@@ -27,6 +27,8 @@ function activityText(item: RemoteActivityItem) {
       ? ` em ${item.conversationName}`
       : '';
   switch (item.kind) {
+    case 'EVENT_REMINDER':
+      return 'Seu evento começa em breve.';
     case 'MENTION':
       return `${item.actorName} mencionou você${location}.`;
     case 'REPLY':
@@ -39,6 +41,9 @@ function activityText(item: RemoteActivityItem) {
 }
 
 function targetPath(item: RemoteActivityItem) {
+  if (item.kind === 'EVENT_REMINDER' && item.target?.type === 'workspace') {
+    return `/calendario?workspaceId=${encodeURIComponent(item.target.id)}`;
+  }
   if (item.target?.type === 'conversation') return `/chat/${encodeURIComponent(item.target.id)}`;
   if (item.target?.type === 'channel') {
     return `/equipes/${encodeURIComponent(item.target.teamId)}/${encodeURIComponent(item.target.id)}`;

@@ -442,7 +442,7 @@ export const updateConversationPreference = (
 
 export type RemoteActivityItem = {
   id: string;
-  kind: 'MENTION' | 'REPLY' | 'REACTION' | 'INVITE';
+  kind: 'MENTION' | 'REPLY' | 'REACTION' | 'INVITE' | 'EVENT_REMINDER';
   actorName: string;
   workspaceName: string | null;
   createdAt: string;
@@ -501,6 +501,56 @@ export type RemoteGlobalSearchResults = {
   }[];
 };
 
+export type RemoteCalendarEvent = {
+  id: string;
+  workspaceId: string;
+  title: string;
+  description: string | null;
+  startAt: string;
+  endAt: string;
+  timeZone: string;
+  recurrence: 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  recurrenceUntil: string | null;
+  reminderMinutes: number;
+  createdBy: { id: string; displayName: string };
+  attendees: {
+    id: string;
+    displayName: string;
+    username: string;
+    avatarUrl: string | null;
+    status: 'INVITED' | 'ACCEPTED' | 'DECLINED';
+    respondedAt: string | null;
+  }[];
+};
+
+export type RemoteMeetingCredentials = {
+  id: string;
+  title: string;
+  roomName: string;
+  serverUrl: string;
+  token: string;
+  startedAt: string;
+  canEnd: boolean;
+};
+
+export type RemoteCallHistoryItem = {
+  id: string;
+  title: string;
+  conversationId: string | null;
+  channelId: string | null;
+  eventId: string | null;
+  createdBy: { id: string; displayName: string };
+  startedAt: string;
+  endedAt: string | null;
+  participants: {
+    id: string;
+    displayName: string;
+    firstJoinedAt: string;
+    lastJoinedAt: string;
+    leftAt: string | null;
+  }[];
+};
+
 export type GlobalSearchFilters = {
   q: string;
   workspaceId: string;
@@ -520,6 +570,108 @@ export const globalSearch = (token: string, filters: GlobalSearchFilters, signal
   });
   return request<RemoteGlobalSearchResults>(`/api/search?${query.toString()}`, token, { signal });
 };
+
+export const getCalendarEvents = (token: string, workspaceId: string, from: string, to: string) => {
+  const query = new URLSearchParams({ from, to });
+  return request<{ items: RemoteCalendarEvent[] }>(
+    `/api/calendar/workspaces/${encodeURIComponent(workspaceId)}/events?${query.toString()}`,
+    token,
+  );
+};
+
+export const createCalendarEvent = (
+  token: string,
+  workspaceId: string,
+  input: {
+    title: string;
+    description?: string | null;
+    startAt: string;
+    endAt: string;
+    timeZone?: string;
+    recurrence?: RemoteCalendarEvent['recurrence'];
+    recurrenceUntil?: string;
+    reminderMinutes?: number;
+    attendeeIds?: string[];
+  },
+) =>
+  request<RemoteCalendarEvent>(
+    `/api/calendar/workspaces/${encodeURIComponent(workspaceId)}/events`,
+    token,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+
+export const updateCalendarEvent = (
+  token: string,
+  eventId: string,
+  input: Partial<{
+    title: string;
+    description: string | null;
+    startAt: string;
+    endAt: string;
+    timeZone: string;
+    recurrence: RemoteCalendarEvent['recurrence'];
+    recurrenceUntil: string | null;
+    reminderMinutes: number;
+    attendeeIds: string[];
+  }>,
+) =>
+  request<RemoteCalendarEvent>(`/api/calendar/events/${encodeURIComponent(eventId)}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+
+export const deleteCalendarEvent = (token: string, eventId: string) =>
+  request<void>(`/api/calendar/events/${encodeURIComponent(eventId)}`, token, {
+    method: 'DELETE',
+  });
+
+export const respondToCalendarEvent = (
+  token: string,
+  eventId: string,
+  status: 'ACCEPTED' | 'DECLINED',
+) =>
+  request<void>(`/api/calendar/events/${encodeURIComponent(eventId)}/response`, token, {
+    method: 'POST',
+    body: JSON.stringify({ status }),
+  });
+
+export const getCallHistory = (token: string, workspaceId: string) =>
+  request<{ items: RemoteCallHistoryItem[] }>(
+    `/api/meetings/workspaces/${encodeURIComponent(workspaceId)}/calls`,
+    token,
+  );
+
+export const startDirectCall = (token: string, workspaceId: string, conversationId: string) =>
+  request<RemoteMeetingCredentials>(
+    `/api/meetings/workspaces/${encodeURIComponent(workspaceId)}/meetings/now`,
+    token,
+    { method: 'POST', body: JSON.stringify({ conversationId }) },
+  );
+
+export const startChannelCall = (token: string, workspaceId: string, channelId: string) =>
+  request<RemoteMeetingCredentials>(
+    `/api/meetings/workspaces/${encodeURIComponent(workspaceId)}/meetings/now`,
+    token,
+    { method: 'POST', body: JSON.stringify({ channelId }) },
+  );
+
+export const joinCalendarMeeting = (token: string, eventId: string) =>
+  request<RemoteMeetingCredentials>(
+    `/api/meetings/events/${encodeURIComponent(eventId)}/join`,
+    token,
+    { method: 'POST' },
+  );
+
+export const joinActiveCall = (token: string, callId: string) =>
+  request<RemoteMeetingCredentials>(`/api/meetings/${encodeURIComponent(callId)}/join`, token, {
+    method: 'POST',
+  });
+
+export const leaveCall = (token: string, callId: string) =>
+  request<void>(`/api/meetings/${encodeURIComponent(callId)}/leave`, token, { method: 'POST' });
+
+export const endCall = (token: string, callId: string) =>
+  request<void>(`/api/meetings/${encodeURIComponent(callId)}/end`, token, { method: 'POST' });
 
 export const getActivity = (
   token: string,

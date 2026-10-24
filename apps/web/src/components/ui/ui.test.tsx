@@ -171,7 +171,7 @@ describe('componentes de interface', () => {
     expect(window.localStorage.getItem('rocket.theme')).toBe('contrast');
   });
 
-  it('abre a área da rota escolhida com navegação nomeada', () => {
+  it('abre a área da rota escolhida com navegação nomeada', async () => {
     render(
       <MemoryRouter initialEntries={['/calendario']}>
         <AuthProvider initialSession={initialSession}>
@@ -182,7 +182,7 @@ describe('componentes de interface', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('heading', { name: 'Calendário' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Calendário' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Calendário' })).toHaveAttribute(
       'aria-current',
       'page',

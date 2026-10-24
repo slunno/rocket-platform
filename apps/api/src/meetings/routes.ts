@@ -231,7 +231,7 @@ router.post('/workspaces/:workspaceId/meetings/now', async (req, res, next) => {
         res,
         400,
         'VALIDATION_ERROR',
-        'Selecione uma conversa direta para iniciar a chamada.',
+        'Selecione uma conversa direta ou um canal para iniciar a chamada.',
       );
     const conversation = parsed.data.conversationId
       ? await prisma.conversation.findFirst({

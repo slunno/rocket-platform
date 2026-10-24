@@ -8,6 +8,7 @@ import { useAuth } from '../../auth/AuthContext';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 function notificationText(item: RemoteActivityItem) {
+  if (item.kind === 'EVENT_REMINDER') return 'Seu evento começa em breve.';
   if (item.kind === 'MENTION') return `${item.actorName} mencionou você.`;
   if (item.kind === 'REPLY') return `${item.actorName} respondeu ao seu tópico.`;
   if (item.kind === 'REACTION') return `${item.actorName} reagiu à sua mensagem.`;
@@ -15,6 +16,9 @@ function notificationText(item: RemoteActivityItem) {
 }
 
 function notificationPath(item: RemoteActivityItem) {
+  if (item.kind === 'EVENT_REMINDER' && item.target?.type === 'workspace') {
+    return `/calendario?workspaceId=${encodeURIComponent(item.target.id)}`;
+  }
   if (item.target?.type === 'conversation') return `/chat/${encodeURIComponent(item.target.id)}`;
   if (item.target?.type === 'channel') {
     return `/equipes/${encodeURIComponent(item.target.teamId)}/${encodeURIComponent(item.target.id)}`;

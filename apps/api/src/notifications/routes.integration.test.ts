@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server as SocketServer } from 'socket.io';
 import express from 'express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { assignIntegrationTestIp } from '../test-utils/integration-ip.js';
 
 const integrationTestsEnabled =
   process.env.AUTH_INTEGRATION_TESTS === 'true' && Boolean(process.env.REDIS_URL);
@@ -33,6 +34,7 @@ describe.skipIf(!integrationTestsEnabled)('atividade e notificações integradas
     closeQueue = notificationQueue.closeActivityNotificationQueue;
     const app = express();
     app.use(express.json());
+    assignIntegrationTestIp(app, '192.0.2.14');
     const socketServer = {
       in: () => ({ socketsJoin: async () => undefined, socketsLeave: async () => undefined }),
       to: () => ({ emit: () => undefined }),

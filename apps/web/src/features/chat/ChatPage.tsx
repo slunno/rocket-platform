@@ -1587,7 +1587,23 @@ export function ChatPage() {
             }
             onMobileMenu={() => setSidebarOpen(true)}
             onSearch={() => setShowSearch(true)}
-            onCall={() => showToast('Chamadas de áudio e vídeo em breve.')}
+            onCall={() => {
+              if (!workspaceId) {
+                showToast('Selecione um espaço para iniciar a chamada.');
+                return;
+              }
+              const target =
+                active.kind === 'DIRECT'
+                  ? `conversationId=${encodeURIComponent(active.id)}`
+                  : active.kind === 'CHANNEL'
+                    ? `channelId=${encodeURIComponent(active.id)}`
+                    : '';
+              if (!target) {
+                showToast('Chamadas estão disponíveis em conversas 1:1 e canais.');
+                return;
+              }
+              navigate(`/chamadas?workspaceId=${encodeURIComponent(workspaceId)}&${target}`);
+            }}
             onToggleDetails={() => setShowDetails((value) => !value)}
             onShowMessages={() => setShowChannelFiles(false)}
             onShowFiles={() => setShowChannelFiles(true)}

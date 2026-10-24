@@ -4,7 +4,9 @@ Plataforma de comunicação corporativa da AKR Brands, em português do Brasil. 
 
 ## Estado do projeto
 
-Os **Blocos 0 a 3 e 6** estão concluídos. Os **Blocos 4 e 5** têm implementação e CI concluídos, mas ainda aguardam conferência visual entre duas contas pelo navegador integrado. No **Bloco 7 — Presença, atividade e notificações**, implementação, migração e testes integrados passaram no CI #44 e foram publicados em `main`; a conferência manual da tela segue bloqueada pela política do navegador. O **Bloco 8 — Busca** está em implementação: busca full-text por mensagens, pessoas, canais e arquivos, filtros e isolamento de acesso foram adicionados e aguardam validação de integração no CI. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para critérios, status e pendências.
+Os **Blocos 0 a 3, 6 e 8** estão concluídos. Os **Blocos 4, 5 e 7** têm implementação e CI, mas ainda aguardam conferência visual multiusuário. No **Bloco 9 — Calendário e Reuniões**, API, migração e serviço LiveKit de desenvolvimento foram publicados em `350dae8`; calendário, chamadas e UI seguem em implementação. O CI #48 passou pelas verificações estáticas e serviços, mas falhou nos testes de autenticação por colisão de IP entre harnesses; o isolamento foi corrigido no checkout e aguarda novo CI. Consulte [`docs/ROADMAP.md`](docs/ROADMAP.md) para critérios, evidências e pendências.
+
+O plano para os aplicativos Android, iOS, Windows e macOS está em [`docs/PLANO_APLICATIVO_NATIVO.md`](docs/PLANO_APLICATIVO_NATIVO.md), incluindo arquitetura, fases, pré-requisitos e prompt de implementação.
 
 ## Status dos blocos
 
@@ -18,8 +20,8 @@ Os **Blocos 0 a 3 e 6** estão concluídos. Os **Blocos 4 e 5** têm implementa�
 | 5 — Chats 1:1 e em grupo                     | 🚧 Em andamento |
 | 6 — Arquivos e anexos                        | ✅ Concluído    |
 | 7 — Presença, atividade e notificações       | 🚧 Em andamento |
-| 8 — Busca                                    | 🚧 Em andamento |
-| 9 — Calendário e reuniões                    | ⏳ Pendente     |
+| 8 — Busca                                    | ✅ Concluído    |
+| 9 — Calendário e reuniões                    | 🚧 Em andamento |
 | 10 — Abas de canal e produtividade           | ⏳ Pendente     |
 | 11 — Administração, segurança e conformidade | ⏳ Pendente     |
 | 12 — Qualidade, observabilidade e entrega    | ⏳ Pendente     |
@@ -28,10 +30,10 @@ Os **Blocos 0 a 3 e 6** estão concluídos. Os **Blocos 4 e 5** têm implementa�
 
 - Interface React com shell responsivo, rotas, temas claro/escuro/alto contraste, tokens monocromáticos, busca rápida (`Ctrl/Cmd + K`), conversas, painel de detalhes, reações de demonstração e modo local com dados fictícios.
 - Componentes separados por layout, conversa e elementos básicos de interface; tema e largura da barra lateral persistidos no navegador.
-- Atividade lista menções, respostas, reações e aceite de convites, com filtros, leitura individual/em lote, alertas no app e notificações do navegador ativadas por escolha da pessoa. Calendário e Chamadas ainda têm estados de demonstração. Arquivos têm upload para MinIO/S3, prévias, download autorizado, busca e ordenação, incluindo arquivos de canal.
+- Atividade lista menções, respostas, reações e aceite de convites, com filtros, leitura individual/em lote, alertas no app e notificações do navegador ativadas por escolha da pessoa. O calendário e as chamadas estão em implementação: eventos com recorrência e lembretes, convites e respostas, histórico, salas LiveKit protegidas por autorização e controles de áudio/vídeo/compartilhamento. A integração e a conferência de mídia entre duas contas ainda estão pendentes. Arquivos têm upload para MinIO/S3, prévias, download autorizado, busca e ordenação, incluindo arquivos de canal.
 - API Express com cadastro e login por e-mail, senhas Argon2id, sessões persistentes com refresh rotativo, logout local/global, recuperação de senha, perfil e status manual; demonstração restrita à configuração de desenvolvimento. Também oferece espaços, equipes, canais públicos/privados, papéis, membros e convites por e-mail. Mensagens têm cursor, envio idempotente, edição, exclusão, reações, tópicos, menções restritas aos participantes, indicador de digitação e marcadores de leitura sincronizados por Socket.IO. DMs são únicas por par; grupos oferecem foto HTTPS, gestão de participantes e preferências de silenciar/fixar. Anexos têm limite de 25 MiB e são verificados por conteúdo antes de ficarem disponíveis.
-- Busca global do bloco 8 em validação: PostgreSQL full-text encontra mensagens, pessoas, canais e arquivos no workspace ativo; filtros de autor, canal/conversa, datas e anexo; trechos destacados renderizados como texto seguro e resultados limitados às conversas acessíveis à pessoa.
-- Modelo Prisma para usuários, espaços, equipes, canais, conversas diretas/em grupo, mensagens, atividade/notificações, anexos, reações, membros e convites; migrações versionadas preservam as mensagens dos canais existentes.
+- Busca global do bloco 8 concluída e validada no CI #47: PostgreSQL full-text encontra mensagens, pessoas, canais e arquivos no workspace ativo; filtros de autor, canal/conversa, datas e anexo; trechos destacados renderizados como texto seguro e resultados limitados às conversas acessíveis à pessoa.
+- Modelo Prisma para usuários, espaços, equipes, canais, conversas diretas/em grupo, mensagens, atividade/notificações, anexos, reações, eventos e participantes de calendário/chamadas, membros e convites; migrações versionadas preservam as mensagens dos canais existentes.
 - Dados de demonstração fictícios em contexto de moda e indústria: Comercial, Produto e Estilo, Produção, Marketing, Logística e TI.
 - Pacote `@rocket/shared` com schemas Zod, tipos inferidos e nomes de eventos Socket.IO.
 - Verificação de variáveis de ambiente da API no boot, com mensagens de erro em português.
@@ -48,13 +50,14 @@ packages/
   shared/                 Schemas Zod, tipos e eventos compartilhados
 docs/                     Roadmap, decisões, API e permissões
 .github/workflows/        CI para pull requests e pushes na main
-docker-compose.yml        PostgreSQL 17 e Redis 7 para desenvolvimento
+docker-compose.yml        PostgreSQL 17, Redis 7, MinIO e LiveKit para desenvolvimento
+livekit.yaml              Configuração local de mídia para desenvolvimento
 ```
 
 ## Requisitos
 
 - Node.js 22 ou superior (o CI usa Node 22)
-- Docker Desktop com Docker Compose, para PostgreSQL e Redis locais
+- Docker Desktop com Docker Compose, para PostgreSQL, Redis, MinIO e LiveKit locais
 
 ## Rodar localmente
 
@@ -77,7 +80,7 @@ npm run dev
 
 Abra <http://localhost:5173>. O ambiente local publica a API em `http://localhost:4000`, PostgreSQL em `localhost:5432` e Redis em `localhost:6379`; os serviços de dados ficam vinculados ao loopback.
 
-Em bash, substitua a cópia do arquivo por `cp .env.example .env`.
+Em bash, substitua a cópia do arquivo por `cp .env.example .env`. O LiveKit local atende em `ws://localhost:7880`, com tráfego WebRTC TCP em `7881` e UDP em `7882`; a chave do `.env.example` serve apenas para desenvolvimento local. Em produção, use um servidor LiveKit separado, endpoint `wss://` e credenciais privadas.
 
 ## Qualidade
 
@@ -134,4 +137,4 @@ A interface usa uma paleta monocromática concentrada em `apps/web/src/styles/to
 
 ## Próximas etapas
 
-O Bloco 7 passou no CI #44, incluindo migração, testes de integração com PostgreSQL e Redis, build, seed e smoke test. A conferência visual manual pelo navegador integrado permanece pendente porque a política de segurança rejeitou a URL local. O próximo passo é o Bloco 8 — Busca; também permanecem pendentes a conferência visual multiusuário dos Blocos 4 e 5 e os Blocos 9 a 12 de [`docs/ROADMAP.md`](docs/ROADMAP.md). Papéis e regras de acesso estão em [`docs/PERMISSOES.md`](docs/PERMISSOES.md); os endpoints estão em [`docs/API.md`](docs/API.md).
+O Bloco 8 passou no CI #47. O Bloco 9 está em implementação: API, migração e serviço LiveKit foram publicados em `350dae8`; a interface de calendário e reuniões e a correção de isolamento dos limites de cadastro nos testes aguardam validação. O CI #48 validou lint, formatação, typecheck, migração e inicialização de serviços, mas falhou nos testes porque diferentes servidores de integração compartilhavam o mesmo IP sintético e excediam o limite legítimo de cadastro. A próxima execução valida IPs isolados por servidor de teste e a interface do Bloco 9. A conferência visual multiusuário dos Blocos 4 e 5 também permanece pendente. O plano para aplicativos Android, iOS, Windows e macOS está em [`docs/PLANO_APLICATIVO_NATIVO.md`](docs/PLANO_APLICATIVO_NATIVO.md); sua implementação começa após estabilizar os blocos 9 a 12. Consulte o [`roadmap`](docs/ROADMAP.md), as [permissões](docs/PERMISSOES.md) e a [API](docs/API.md).

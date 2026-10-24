@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { assignIntegrationTestIp } from '../test-utils/integration-ip.js';
 
 const integrationTestsEnabled = process.env.AUTH_INTEGRATION_TESTS === 'true';
 
@@ -20,6 +21,7 @@ describe.skipIf(!integrationTestsEnabled)('fluxo de autenticação integrado', (
     prisma = client.prisma;
     const app = express();
     app.use(express.json());
+    assignIntegrationTestIp(app, '192.0.2.10');
     app.use('/api/auth', authRouter);
     server = createServer(app);
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

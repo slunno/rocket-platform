@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server as SocketServer } from 'socket.io';
 import express from 'express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { assignIntegrationTestIp } from '../test-utils/integration-ip.js';
 
 const integrationTestsEnabled = process.env.AUTH_INTEGRATION_TESTS === 'true';
 
@@ -26,6 +27,7 @@ describe.skipIf(!integrationTestsEnabled)('organização, equipes e canais integ
     prisma = client.prisma;
     const app = express();
     app.use(express.json());
+    assignIntegrationTestIp(app, '192.0.2.13');
     const socketServer = {
       in: () => ({ socketsJoin: async () => undefined, socketsLeave: async () => undefined }),
       to: () => ({ emit: () => undefined }),

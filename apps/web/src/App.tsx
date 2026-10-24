@@ -1,13 +1,28 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { ThemeProvider } from './hooks/useTheme';
 import { AppShell } from './layout/AppShell';
 import { ChatPage } from './features/chat/ChatPage';
 import { ActivityPage } from './features/activity/ActivityPage';
-import { EmptyRoutePage } from './features/activity/EmptyRoutePage';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { AuthPage } from './auth/AuthPage';
 import { InviteAcceptPage } from './auth/InviteAcceptPage';
 import { FilesBrowser } from './features/files/FilesBrowser';
+
+const CalendarPage = lazy(() =>
+  import('./features/calendar/CalendarPage').then((module) => ({ default: module.CalendarPage })),
+);
+const CallsPage = lazy(() =>
+  import('./features/meetings/CallsPage').then((module) => ({ default: module.CallsPage })),
+);
+
+function LoadingRoute() {
+  return (
+    <div className="auth-loading" role="status" aria-live="polite">
+      <p>Carregando esta área…</p>
+    </div>
+  );
+}
 
 function LoadingSession() {
   return (
@@ -64,20 +79,18 @@ export function AppRoutes() {
           <Route
             path="calendario"
             element={
-              <EmptyRoutePage
-                title="Calendário"
-                description="Seus eventos e reuniões de trabalho serão mostrados nesta área."
-              />
+              <Suspense fallback={<LoadingRoute />}>
+                <CalendarPage />
+              </Suspense>
             }
           />
           <Route path="arquivos" element={<FilesBrowser />} />
           <Route
             path="chamadas"
             element={
-              <EmptyRoutePage
-                title="Chamadas"
-                description="Seu histórico de chamadas e reuniões será mostrado aqui."
-              />
+              <Suspense fallback={<LoadingRoute />}>
+                <CallsPage />
+              </Suspense>
             }
           />
           <Route path="*" element={<Navigate to="/chat/produto" replace />} />
